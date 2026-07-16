@@ -76,6 +76,13 @@
       border:1.5px solid var(--hair);padding:2px 7px;border-radius:999px;line-height:1.35}
     .card .subtag:hover{border-color:var(--cc);color:var(--cc)}
     .card .empty2{font-size:13px;color:var(--ink-3)}
+    /* todas as subpáginas */
+    .card .pgsec{display:flex;flex-direction:column;gap:7px}
+    .card .pglist{display:flex;flex-direction:column;gap:6px}
+    .card .pglink{font-size:13px;color:var(--ink-2);padding-left:14px;position:relative;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .card .pglink::before{content:"›";position:absolute;left:0;color:var(--cc);font-weight:700}
+    .card .pglink:hover{color:var(--cc)}
     /* to-dos */
     .card .todos{display:flex;flex-direction:column;gap:7px}
     .card .todohead{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
@@ -173,6 +180,10 @@
       const list = (c.recent&&c.recent.length)
         ? `<div class="list">${c.recent.map(item).join("")}</div>`
         : `<div class="empty2">nada recente</div>`;
+      const allp = (c.allpages&&c.allpages.length)
+        ? `<div class="pgsec"><div class="todohead">Todas as subpáginas · ${c.allpages.length}</div>
+            <div class="pglist">${c.allpages.map(p=>`<a class="pglink" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`).join("")}</div></div>`
+        : "";
       const todos = (c.todos&&c.todos.length)
         ? `<div class="todos"><div class="todohead">To-do</div>${c.todos.map(t=>
             `<div class="todo ${t.checked?"done":""}"><span class="box">${t.checked?"✓":""}</span><span>${esc(t.text||"")}</span></div>`).join("")}</div>`
@@ -181,6 +192,7 @@
         <div class="khead"><span class="kname">Notion · IMPORT</span><span class="tag">real</span></div>
         <div class="big"><span class="num mono">${c.count.toLocaleString("pt-BR")}</span><span class="unit">${esc(c.label||"itens")}</span></div>
         ${list}
+        ${allp}
         ${todos}
         <div class="kfoot"><span class="when">${when||"—"}</span>
           <a class="go" href="${esc(c.url)}" target="_blank" rel="noopener">abrir <span class="arw">→</span></a></div>

@@ -251,11 +251,18 @@ async function fetchNotion() {
     subpages: details[i].subpages,
   }));
 
+  // lista completa de subpáginas diretas da IMPORT (todas), ordenadas por edição
+  const allpages = sorted.map((b) => ({
+    title: b.child_page?.title || "(sem título)",
+    url: notionUrl(b.id),
+  }));
+
   return {
     count: pages.length,
     label: "páginas",
     updatedAt: recent[0]?.createdAt || null,
     recent,
+    allpages,
     todos,
   };
 }
