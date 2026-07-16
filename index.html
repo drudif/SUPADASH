@@ -5,114 +5,171 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Dash</title>
   <style>
-    :root {
-      --bg: #0b0c0e;
-      --card: #15171b;
-      --line: #24272e;
-      --fg: #e8eaed;
-      --muted: #868c96;
-      --accent: #7c9cff;
-      --ok: #5fd08a;
-      --err: #ff6b6b;
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&display=swap');
+    @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
+
+    :root{
+      --paper:#f4efe6; --paper-2:#faf6ee; --ink:#191512; --ink-2:#4c463d; --ink-3:#8a8272;
+      --line:#191512; --hair:#d8d0c0;
+      --ai:#7c3aed; --design:#e8551e; --sec:#b0208f; --av:#0e8ba0;
+      --serif:"DM Serif Display",Georgia,"Times New Roman",serif;
+      --sans:"Satoshi","Helvetica Neue",system-ui,Arial,sans-serif;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg); color: var(--fg);
-      font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      min-height: 100vh; padding: 48px 24px;
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-weight:500;line-height:1.5;
+      -webkit-font-smoothing:antialiased;font-feature-settings:"ss01";display:flex;flex-direction:column;overflow:hidden}
+    a{color:inherit;text-decoration:none}
+    ::selection{background:var(--ink);color:var(--paper)}
+    .mono{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+
+    /* ---------- TOPBAR ---------- */
+    .topbar{flex-shrink:0;border-bottom:1.5px solid var(--line);background:var(--paper);
+      display:flex;align-items:center;gap:22px;padding:14px clamp(18px,3vw,34px);flex-wrap:wrap}
+    .brand{font-family:var(--serif);font-weight:400;font-size:clamp(26px,3.2vw,40px);line-height:.9;letter-spacing:-.02em}
+    .brand .dot{color:var(--design)}
+    .tabs{display:flex;gap:8px}
+    .tab{border:1.5px solid var(--line);background:transparent;color:var(--ink);padding:9px 18px;border-radius:999px;
+      font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;
+      display:inline-flex;align-items:center;gap:9px;transition:background .15s,color .15s}
+    .tab .n{font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums}
+    .tab:hover{background:var(--ink);color:var(--paper)} .tab:hover .n{color:rgba(244,239,230,.65)}
+    .tab.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+    .tab.active .n{color:rgba(244,239,230,.7)}
+    .topbar .spacer{flex:1}
+    .ext{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;
+      display:inline-flex;align-items:center;gap:6px}
+    .ext:hover{color:var(--ink)}
+    .ext .arw{transition:transform .25s} .ext:hover .arw{transform:translateX(3px)}
+
+    /* ---------- STAGE (iframe + rail) ---------- */
+    .stage{flex:1;display:flex;min-height:0}
+    .frame{flex:1;position:relative;min-width:0;background:var(--paper-2)}
+    .frame iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+    .frame .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      font-family:var(--serif);font-size:26px;color:var(--ink-3);pointer-events:none;transition:opacity .3s}
+    .frame.ready .loading{opacity:0}
+
+    /* ---------- RAIL (NOTION card fixo) ---------- */
+    .rail{flex-shrink:0;width:clamp(280px,26vw,340px);border-left:1.5px solid var(--line);background:var(--paper);
+      overflow-y:auto;padding:clamp(16px,2vw,24px)}
+    .card{border:1.5px solid var(--line);border-radius:16px;overflow:hidden;background:transparent;
+      display:flex;flex-direction:column;transition:box-shadow .18s,background .18s}
+    .card:hover{background:var(--paper-2);box-shadow:5px 5px 0 var(--cc)}
+    .card .bar{height:5px;background:var(--cc)}
+    .card .pad{padding:20px;display:flex;flex-direction:column;gap:13px}
+    .card .khead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+    .card .kname{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+    .card .tag{font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--cc);
+      border:1.5px solid var(--cc);padding:3px 8px;border-radius:999px;line-height:1}
+    .card .big{display:flex;align-items:baseline;gap:10px}
+    .card .num{font-family:var(--serif);font-weight:400;font-size:56px;line-height:.8;letter-spacing:-.02em}
+    .card .unit{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+    .card .list{list-style:none;display:flex;flex-direction:column;gap:8px;font-size:13.5px;color:var(--ink-2)}
+    .card .list li{padding-left:15px;position:relative;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .card .list li::before{content:"—";position:absolute;left:0;color:var(--cc)}
+    .card .list a{color:var(--ink-2)} .card .list a:hover{color:var(--cc)}
+    .card .empty2{font-size:13px;color:var(--ink-3)}
+    .card .kfoot{margin-top:2px;padding-top:12px;border-top:1.5px solid var(--hair);display:flex;
+      align-items:center;justify-content:space-between}
+    .card .when{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+    .card .go{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);font-weight:700;
+      display:inline-flex;align-items:center;gap:6px}
+    .card .go:hover{color:var(--cc)} .card .go .arw{transition:transform .25s} .card:hover .go .arw{transform:translateX(4px)}
+    .card.err .bar{background:var(--ink-3)} .card.err .msg{font-size:13px;color:var(--sec);font-weight:700}
+    .rail .railcap{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:13px}
+
+    /* ---------- responsivo ---------- */
+    @media(max-width:820px){
+      body{overflow:auto}
+      .stage{flex-direction:column-reverse}
+      .rail{width:auto;border-left:0;border-top:1.5px solid var(--line)}
+      .frame{height:78vh}
     }
-    .wrap { max-width: 920px; margin: 0 auto; }
-    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 32px; }
-    h1 { font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
-    .meta { color: var(--muted); font-size: 12px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-    .card {
-      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-      padding: 22px; display: flex; flex-direction: column; gap: 4px;
-      text-decoration: none; color: inherit; transition: border-color .15s, transform .15s;
-    }
-    .card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .card .name { font-size: 13px; font-weight: 600; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
-    .card .desc { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
-    .card .head { display: flex; align-items: baseline; justify-content: space-between; }
-    .card .num { font-size: 40px; font-weight: 680; letter-spacing: -.03em; line-height: 1; }
-    .card .unit { font-size: 13px; color: var(--muted); }
-    .card .recent { list-style: none; margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
-    .card .recent li { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .card .recent li::before { content: "•"; color: var(--accent); margin-right: 7px; }
-    .card .recent a { color: var(--fg); text-decoration: none; }
-    .card .recent a:hover { color: var(--accent); }
-    .card .empty { font-size: 13px; color: var(--muted); margin-top: 12px; }
-    .card .foot { margin-top: 16px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); }
-    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-    .dot.ok { background: var(--ok); } .dot.err { background: var(--err); }
-    .card .open { color: var(--accent); font-weight: 600; }
-    .err-msg { color: var(--err); font-size: 12px; margin-top: 6px; }
-    footer { margin-top: 28px; color: var(--muted); font-size: 12px; text-align: center; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h1>Dash</h1>
-      <span class="meta" id="meta">carregando…</span>
-    </header>
-    <div class="grid" id="grid"></div>
-    <footer>atualiza a cada carregamento · cache de 60s no servidor</footer>
+  <div class="topbar">
+    <span class="brand">Dash<span class="dot">.</span></span>
+    <nav class="tabs" id="tabs"></nav>
+    <span class="spacer"></span>
+    <a class="ext" id="ext" target="_blank" rel="noopener">abrir em nova aba <span class="arw">→</span></a>
+  </div>
+
+  <div class="stage">
+    <div class="frame" id="frame">
+      <div class="loading">carregando…</div>
+      <iframe id="app" title="app"></iframe>
+    </div>
+    <aside class="rail">
+      <div class="railcap">fixo</div>
+      <div id="notion"></div>
+    </aside>
   </div>
 
   <script>
-    const grid = document.getElementById("grid");
-    const meta = document.getElementById("meta");
+    const esc = (s)=>String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+    const TABS = [
+      { key:"refs",     label:"REFS",     cc:"var(--design)" },
+      { key:"latefeed", label:"LATEFEED", cc:"var(--av)" },
+    ];
+    let cards = {}, active = null;
 
-    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (m) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+    function selectTab(key){
+      active = key;
+      const c = cards[key] || {};
+      const t = TABS.find(t=>t.key===key);
+      document.querySelectorAll(".tab").forEach(el=>el.classList.toggle("active", el.dataset.key===key));
+      const frame = document.getElementById("frame");
+      const iframe = document.getElementById("app");
+      frame.classList.remove("ready");
+      if (c.url){ iframe.src = c.url; document.getElementById("ext").href = c.url; }
+      else { iframe.removeAttribute("src"); }
+      iframe.onload = ()=>frame.classList.add("ready");
+    }
 
-    function recentList(items) {
-      if (!items || !items.length) return '<div class="empty">nada recente</div>';
-      const li = items.map((it) => {
-        const t = esc(it.title || "(sem título)");
-        return it.url
-          ? `<li><a href="${esc(it.url)}" target="_blank" rel="noopener">${t}</a></li>`
-          : `<li>${t}</li>`;
+    function renderTabs(){
+      const nav = document.getElementById("tabs");
+      nav.innerHTML = TABS.map(t=>{
+        const c = cards[t.key] || {};
+        const n = c.ok && typeof c.count==="number" ? `<span class="n mono">${c.count}</span>` : "";
+        return `<button class="tab" data-key="${t.key}" style="--cc:${t.cc}">${t.label}${n}</button>`;
       }).join("");
-      return `<ul class="recent">${li}</ul>`;
+      nav.querySelectorAll(".tab").forEach(el=>el.onclick=()=>selectTab(el.dataset.key));
     }
 
-    function card(c) {
-      const div = document.createElement("div");
-      div.className = "card";
-      const body = c.ok
-        ? `<div class="head">
-             <span class="num">${c.count.toLocaleString("pt-BR")}</span>
-             <span class="unit">${esc(c.label || "itens")}</span>
-           </div>
-           ${recentList(c.recent)}`
-        : `<div class="err-msg">${esc(c.error || "indisponível")}</div>`;
+    function renderNotion(){
+      const c = cards.notion || {};
+      const cc = "var(--ai)";
+      const box = document.getElementById("notion");
+      if (!c.ok){
+        box.innerHTML = `<div class="card err" style="--cc:${cc}"><div class="bar"></div>
+          <div class="pad"><div class="khead"><span class="kname">Notion · IMPORT</span></div>
+          <div class="msg">${esc(c.error||"indisponível")}</div></div></div>`;
+        return;
+      }
       const when = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString("pt-BR") : "";
-      const open = c.url
-        ? `<a class="open" href="${esc(c.url)}" target="_blank" rel="noopener">abrir →</a>`
-        : "";
-      div.innerHTML = `
-        <div class="name">${esc(c.label)}</div>
-        <div class="desc">${esc(c.desc || "")}</div>
-        ${body}
-        <div class="foot">
-          <span><span class="dot ${c.ok ? "ok" : "err"}"></span>${when || (c.ok ? "ok" : "erro")}</span>
-          ${open}
-        </div>`;
-      return div;
+      const list = (c.recent&&c.recent.length)
+        ? `<ul class="list">${c.recent.map(r=>`<li><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title||"(sem título)")}</a></li>`).join("")}</ul>`
+        : `<div class="empty2">nada recente</div>`;
+      box.innerHTML = `<div class="card" style="--cc:${cc}"><div class="bar"></div><div class="pad">
+        <div class="khead"><span class="kname">Notion · IMPORT</span><span class="tag">real</span></div>
+        <div class="big"><span class="num mono">${c.count.toLocaleString("pt-BR")}</span><span class="unit">${esc(c.label||"itens")}</span></div>
+        ${list}
+        <div class="kfoot"><span class="when">${when||"—"}</span>
+          <a class="go" href="${esc(c.url)}" target="_blank" rel="noopener">abrir <span class="arw">→</span></a></div>
+      </div>`;
     }
 
-    async function load() {
-      try {
+    async function load(){
+      try{
         const r = await fetch("/api/stats");
         const data = await r.json();
-        grid.replaceChildren(...data.cards.map(card));
-        meta.textContent = "atualizado " + new Date(data.fetchedAt).toLocaleTimeString("pt-BR");
-      } catch (e) {
-        meta.textContent = "erro ao carregar";
-      }
+        cards = Object.fromEntries(data.cards.map(c=>[c.key,c]));
+      }catch(e){ cards = {}; }
+      renderTabs();
+      renderNotion();
+      if (!active) selectTab(cards.refs?.url ? "refs" : TABS[0].key);
     }
     load();
   </script>
