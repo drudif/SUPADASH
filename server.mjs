@@ -36,6 +36,7 @@ const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 60_000);
 const SUMMARY_TOKEN = process.env.SUMMARY_TOKEN || "";
 const NOTION_TOKEN = process.env.NOTION_TOKEN || "";
 const NOTION_PAGE_ID = (process.env.NOTION_PARENT_PAGE_ID || "").replace(/-/g, "");
+const NOTION_TODO_ID = (process.env.NOTION_TODO_PAGE_ID || "").replace(/-/g, "");
 
 // ── Auth do dash ──────────────────────────────────────────────────────────────
 // Se DASH_PASSWORD estiver definido, todo o dash exige login (cookie httpOnly).
@@ -162,42 +163,100 @@ async function fetchSummary({ url }) {
   };
 }
 
-// NOTION (opção C): filhas da página IMPORT via API oficial. Conta os child_page
-// e devolve os 3 editados mais recentemente, no shape comum.
-async function fetchNotion() {
-  const headers = {
-    Authorization: `Bearer ${NOTION_TOKEN}`,
-    "Notion-Version": "2022-06-28",
-    "Content-Type": "application/json",
-  };
-  const children = [];
+// NOTION (opção C): API oficial da página IMPORT.
+// Traz: contagem + recentes (com prévia de conteúdo + subpáginas) + to-dos.
+const NOTION_HEADERS = {
+  Authorization: `Bearer ${NOTION_TOKEN}`,
+  "Notion-Version": "2022-06-28",
+  "Content-Type": "application/json",
+};
+const notionUrl = (id) => `https://www.notion.so/${String(id).replace(/-/g, "")}`;
+const richText = (rt) => (Array.isArray(rt) ? rt.map((s) => s.plain_text || "").join("") : "");
+
+// blocos com texto que servem de prévia
+const TEXT_BLOCKS = ["paragraph", "heading_1", "heading_2", "heading_3",
+  "bulleted_list_item", "numbered_list_item", "quote", "callout", "to_do"];
+
+// baixa (com paginação) os blocos-filhos de um bloco/página
+async function notionChildren(id) {
+  const out = [];
   let cursor;
   do {
-    const u = new URL(`https://api.notion.com/v1/blocks/${NOTION_PAGE_ID}/children`);
+    const u = new URL(`https://api.notion.com/v1/blocks/${id}/children`);
     u.searchParams.set("page_size", "100");
     if (cursor) u.searchParams.set("start_cursor", cursor);
-    const res = await fetch(u, { headers, signal: AbortSignal.timeout(8000) });
+    const res = await fetch(u, { headers: NOTION_HEADERS, signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`Notion HTTP ${res.status}`);
     const data = await res.json();
-    for (const b of data.results || []) if (b.type === "child_page") children.push(b);
+    out.push(...(data.results || []));
     cursor = data.has_more ? data.next_cursor : null;
   } while (cursor);
+  return out;
+}
 
-  const recent = [...children]
-    .sort((a, b) => String(b.last_edited_time).localeCompare(String(a.last_edited_time)))
-    .slice(0, 3)
-    .map((b) => ({
-      title: b.child_page?.title || "(sem título)",
-      url: `https://www.notion.so/${String(b.id).replace(/-/g, "")}`,
-      createdAt: b.last_edited_time || null,
-      source: "notion",
-    }));
+// para uma página: prévia (~160 chars) + subpáginas diretas
+async function notionPageDetail(pageId) {
+  try {
+    const blocks = await notionChildren(pageId);
+    let preview = "";
+    const subpages = [];
+    for (const b of blocks) {
+      if (b.type === "child_page") {
+        subpages.push({ title: b.child_page?.title || "(sem título)", url: notionUrl(b.id) });
+      } else if (preview.length < 160 && TEXT_BLOCKS.includes(b.type)) {
+        const t = richText(b[b.type]?.rich_text).trim();
+        if (t) preview += (preview ? " · " : "") + t;
+      }
+    }
+    return { preview: preview.slice(0, 160), subpages: subpages.slice(0, 6) };
+  } catch {
+    return { preview: "", subpages: [] };
+  }
+}
+
+// to-dos da subpágina dedicada
+async function notionTodos() {
+  if (!NOTION_TODO_ID) return [];
+  try {
+    const blocks = await notionChildren(NOTION_TODO_ID);
+    return blocks
+      .filter((b) => b.type === "to_do")
+      .map((b) => ({ text: richText(b.to_do?.rich_text), checked: !!b.to_do?.checked }));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchNotion() {
+  const top = await notionChildren(NOTION_PAGE_ID);
+  // páginas de conteúdo = child_page, exceto a subpágina de to-do
+  const pages = top.filter((b) => b.type === "child_page" && b.id.replace(/-/g, "") !== NOTION_TODO_ID);
+
+  const sorted = [...pages].sort((a, b) =>
+    String(b.last_edited_time).localeCompare(String(a.last_edited_time)));
+  const top3 = sorted.slice(0, 3);
+
+  // detalhes das 3 recentes + to-dos, em paralelo
+  const [details, todos] = await Promise.all([
+    Promise.all(top3.map((b) => notionPageDetail(b.id))),
+    notionTodos(),
+  ]);
+
+  const recent = top3.map((b, i) => ({
+    title: b.child_page?.title || "(sem título)",
+    url: notionUrl(b.id),
+    createdAt: b.last_edited_time || null,
+    source: "notion",
+    preview: details[i].preview,
+    subpages: details[i].subpages,
+  }));
 
   return {
-    count: children.length,
+    count: pages.length,
     label: "páginas",
     updatedAt: recent[0]?.createdAt || null,
     recent,
+    todos,
   };
 }
 
