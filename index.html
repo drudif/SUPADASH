@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dash</title>
+  <style>
+    :root {
+      --bg: #0b0c0e;
+      --card: #15171b;
+      --line: #24272e;
+      --fg: #e8eaed;
+      --muted: #868c96;
+      --accent: #7c9cff;
+      --ok: #5fd08a;
+      --err: #ff6b6b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--fg);
+      font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh; padding: 48px 24px;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; }
+    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 32px; }
+    h1 { font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
+    .meta { color: var(--muted); font-size: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      padding: 22px; display: flex; flex-direction: column; gap: 4px;
+      text-decoration: none; color: inherit; transition: border-color .15s, transform .15s;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .card .name { font-size: 13px; font-weight: 600; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+    .card .desc { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+    .card .head { display: flex; align-items: baseline; justify-content: space-between; }
+    .card .num { font-size: 40px; font-weight: 680; letter-spacing: -.03em; line-height: 1; }
+    .card .unit { font-size: 13px; color: var(--muted); }
+    .card .recent { list-style: none; margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+    .card .recent li { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card .recent li::before { content: "•"; color: var(--accent); margin-right: 7px; }
+    .card .recent a { color: var(--fg); text-decoration: none; }
+    .card .recent a:hover { color: var(--accent); }
+    .card .empty { font-size: 13px; color: var(--muted); margin-top: 12px; }
+    .card .foot { margin-top: 16px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot.ok { background: var(--ok); } .dot.err { background: var(--err); }
+    .card .open { color: var(--accent); font-weight: 600; }
+    .err-msg { color: var(--err); font-size: 12px; margin-top: 6px; }
+    footer { margin-top: 28px; color: var(--muted); font-size: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Dash</h1>
+      <span class="meta" id="meta">carregando…</span>
+    </header>
+    <div class="grid" id="grid"></div>
+    <footer>atualiza a cada carregamento · cache de 60s no servidor</footer>
+  </div>
+
+  <script>
+    const grid = document.getElementById("grid");
+    const meta = document.getElementById("meta");
+
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (m) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+
+    function recentList(items) {
+      if (!items || !items.length) return '<div class="empty">nada recente</div>';
+      const li = items.map((it) => {
+        const t = esc(it.title || "(sem título)");
+        return it.url
+          ? `<li><a href="${esc(it.url)}" target="_blank" rel="noopener">${t}</a></li>`
+          : `<li>${t}</li>`;
+      }).join("");
+      return `<ul class="recent">${li}</ul>`;
+    }
+
+    function card(c) {
+      const div = document.createElement("div");
+      div.className = "card";
+      const body = c.ok
+        ? `<div class="head">
+             <span class="num">${c.count.toLocaleString("pt-BR")}</span>
+             <span class="unit">${esc(c.label || "itens")}</span>
+           </div>
+           ${recentList(c.recent)}`
+        : `<div class="err-msg">${esc(c.error || "indisponível")}</div>`;
+      const when = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString("pt-BR") : "";
+      const open = c.url
+        ? `<a class="open" href="${esc(c.url)}" target="_blank" rel="noopener">abrir →</a>`
+        : "";
+      div.innerHTML = `
+        <div class="name">${esc(c.label)}</div>
+        <div class="desc">${esc(c.desc || "")}</div>
+        ${body}
+        <div class="foot">
+          <span><span class="dot ${c.ok ? "ok" : "err"}"></span>${when || (c.ok ? "ok" : "erro")}</span>
+          ${open}
+        </div>`;
+      return div;
+    }
+
+    async function load() {
+      try {
+        const r = await fetch("/api/stats");
+        const data = await r.json();
+        grid.replaceChildren(...data.cards.map(card));
+        meta.textContent = "atualizado " + new Date(data.fetchedAt).toLocaleTimeString("pt-BR");
+      } catch (e) {
+        meta.textContent = "erro ao carregar";
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

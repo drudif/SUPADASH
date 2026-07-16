@@ -1,0 +1,13 @@
+{
+  "name": "dash",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hub/launcher dos projetos (REFS, LATEFEED, NOTION) — cards com stats ao vivo.",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20.12"
+  }
+}
