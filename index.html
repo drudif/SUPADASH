@@ -42,86 +42,16 @@
     .ext:hover{color:var(--ink)}
     .ext .arw{transition:transform .25s} .ext:hover .arw{transform:translateX(3px)}
 
-    /* ---------- STAGE (iframe + rail) ---------- */
+    /* ---------- STAGE (iframe full-width) ---------- */
     .stage{flex:1;display:flex;min-height:0}
     .frame{flex:1;position:relative;min-width:0;background:var(--paper-2)}
     .frame iframe{width:100%;height:100%;border:0;display:block;background:#fff}
-    .frame .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-      font-family:var(--serif);font-size:26px;color:var(--ink-3);pointer-events:none;transition:opacity .3s}
-    .frame.ready .loading{opacity:0}
+    .frame .msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+      font-family:var(--serif);font-size:26px;color:var(--ink-3);text-align:center;padding:24px;pointer-events:none;transition:opacity .3s}
+    .frame .msg small{font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+    .frame.ready .msg{opacity:0}
 
-    /* ---------- RAIL (NOTION card fixo) ---------- */
-    .rail{flex-shrink:0;width:clamp(280px,26vw,340px);border-left:1.5px solid var(--line);background:var(--paper);
-      overflow-y:auto;padding:clamp(16px,2vw,24px)}
-    .card{border:1.5px solid var(--line);border-radius:16px;overflow:hidden;background:transparent;
-      display:flex;flex-direction:column;transition:box-shadow .18s,background .18s}
-    .card:hover{background:var(--paper-2);box-shadow:5px 5px 0 var(--cc)}
-    .card .bar{height:5px;background:var(--cc)}
-    .card .pad{padding:20px;display:flex;flex-direction:column;gap:13px}
-    .card .khead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-    .card .kname{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
-    .card .tag{font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--cc);
-      border:1.5px solid var(--cc);padding:3px 8px;border-radius:999px;line-height:1}
-    .card .big{display:flex;align-items:baseline;gap:10px}
-    .card .num{font-family:var(--serif);font-weight:400;font-size:56px;line-height:.8;letter-spacing:-.02em}
-    .card .unit{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
-    .card .list{list-style:none;display:flex;flex-direction:column;gap:14px}
-    .card .kitem{display:flex;flex-direction:column;gap:5px;padding-left:13px;position:relative}
-    .card .kitem::before{content:"—";position:absolute;left:0;top:1px;color:var(--cc)}
-    .card .kt{font-family:var(--serif);font-size:16px;line-height:1.1;letter-spacing:-.01em;color:var(--ink)}
-    .card .kt:hover{color:var(--cc)}
-    .card .kp{font-size:12.5px;line-height:1.45;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-    .card .ksub{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
-    .card .subtag{font-size:9px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;color:var(--ink-3);
-      border:1.5px solid var(--hair);padding:2px 7px;border-radius:999px;line-height:1.35}
-    .card .subtag:hover{border-color:var(--cc);color:var(--cc)}
-    .card .empty2{font-size:13px;color:var(--ink-3)}
-    /* todas as subpáginas */
-    .card .pgsec{display:flex;flex-direction:column;gap:7px}
-    .card .pglist{display:flex;flex-direction:column;gap:6px}
-    .card .pglink{font-size:13px;color:var(--ink-2);padding-left:14px;position:relative;
-      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .card .pglink::before{content:"›";position:absolute;left:0;color:var(--cc);font-weight:700}
-    .card .pglink:hover{color:var(--cc)}
-    /* to-dos */
-    .card .todos{display:flex;flex-direction:column;gap:7px}
-    .card .todohead{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
-    .card .todo{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.35;color:var(--ink-2)}
-    .card .todo .box{flex-shrink:0;width:15px;height:15px;border:1.5px solid var(--ink-3);border-radius:4px;margin-top:1px;
-      display:inline-flex;align-items:center;justify-content:center;font-size:10px;line-height:1;color:var(--paper);
-      background:transparent;cursor:pointer;padding:0;font-family:inherit;transition:background .12s,border-color .12s}
-    .card .todo .box:hover{border-color:var(--ink)}
-    .card .todo.done .box{background:var(--cc);border-color:var(--cc)}
-    .card .todo .tdtext{flex:1;min-width:0}
-    .card .todo.done .tdtext{color:var(--ink-3);text-decoration:line-through}
-    .card .todo .tddel{margin-left:auto;flex-shrink:0;border:none;background:none;color:var(--ink-3);cursor:pointer;
-      font-size:15px;line-height:1;opacity:0;padding:0 2px;font-family:inherit;transition:opacity .12s,color .12s}
-    .card .todo:hover .tddel{opacity:.55} .card .todo .tddel:hover{opacity:1;color:#d61f2b}
-    .card .todo.pending{opacity:.5}
-    .card .tdadd{display:flex;gap:7px;margin-top:4px}
-    .card .tdaddinput{flex:1;min-width:0;border:1.5px solid var(--hair);border-radius:999px;padding:8px 14px;
-      background:transparent;font-family:inherit;font-size:12.5px;color:var(--ink);outline:none}
-    .card .tdaddinput:focus{border-color:var(--ink)}
-    .card .tdaddinput::placeholder{color:var(--ink-3)}
-    .card .tdaddbtn{flex-shrink:0;width:34px;border:1.5px solid var(--line);background:var(--ink);color:var(--paper);
-      border-radius:999px;cursor:pointer;font-size:17px;line-height:1;font-family:inherit}
-    .card .tdaddbtn:hover{background:transparent;color:var(--ink)}
-    .card .kfoot{margin-top:2px;padding-top:12px;border-top:1.5px solid var(--hair);display:flex;
-      align-items:center;justify-content:space-between}
-    .card .when{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
-    .card .go{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);font-weight:700;
-      display:inline-flex;align-items:center;gap:6px}
-    .card .go:hover{color:var(--cc)} .card .go .arw{transition:transform .25s} .card:hover .go .arw{transform:translateX(4px)}
-    .card.err .bar{background:var(--ink-3)} .card.err .msg{font-size:13px;color:var(--sec);font-weight:700}
-    .rail .railcap{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:13px}
-
-    /* ---------- responsivo ---------- */
-    @media(max-width:820px){
-      body{overflow:auto}
-      .stage{flex-direction:column-reverse}
-      .rail{width:auto;border-left:0;border-top:1.5px solid var(--line)}
-      .frame{height:78vh}
-    }
+    @media(max-width:820px){ body{overflow:auto} .frame{height:88vh} }
   </style>
 </head>
 <body>
@@ -134,34 +64,39 @@
 
   <div class="stage">
     <div class="frame" id="frame">
-      <div class="loading">carregando…</div>
+      <div class="msg" id="msg">carregando…</div>
       <iframe id="app" title="app"></iframe>
     </div>
-    <aside class="rail">
-      <div class="railcap">fixo</div>
-      <div id="notion"></div>
-    </aside>
   </div>
 
   <script>
-    const esc = (s)=>String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
     const TABS = [
       { key:"refs",     label:"REFS",     cc:"var(--design)" },
       { key:"latefeed", label:"LATEFEED", cc:"var(--av)" },
+      { key:"appflowy", label:"APPFLOWY", cc:"var(--ai)" },
     ];
     let cards = {}, active = null;
 
     function selectTab(key){
       active = key;
       const c = cards[key] || {};
-      const t = TABS.find(t=>t.key===key);
       document.querySelectorAll(".tab").forEach(el=>el.classList.toggle("active", el.dataset.key===key));
       const frame = document.getElementById("frame");
       const iframe = document.getElementById("app");
+      const msg = document.getElementById("msg");
+      const ext = document.getElementById("ext");
       frame.classList.remove("ready");
-      if (c.url){ iframe.src = c.url; document.getElementById("ext").href = c.url; }
-      else { iframe.removeAttribute("src"); }
-      iframe.onload = ()=>frame.classList.add("ready");
+      if (c.url){
+        msg.innerHTML = "carregando…";
+        iframe.style.display = "block";
+        iframe.src = c.url; ext.href = c.url; ext.style.visibility = "visible";
+        iframe.onload = ()=>frame.classList.add("ready");
+      } else {
+        iframe.removeAttribute("src"); iframe.style.display = "none"; ext.style.visibility = "hidden";
+        msg.innerHTML = key==="appflowy"
+          ? 'AppFlowy ainda não configurado<small>defina APPFLOWY_URL (AppFlowy Web self-hosted)</small>'
+          : 'fonte não configurada';
+      }
     }
 
     function renderTabs(){
@@ -174,92 +109,6 @@
       nav.querySelectorAll(".tab").forEach(el=>el.onclick=()=>selectTab(el.dataset.key));
     }
 
-    function renderNotion(){
-      const c = cards.notion || {};
-      const cc = "var(--ai)";
-      const box = document.getElementById("notion");
-      if (!c.ok){
-        box.innerHTML = `<div class="card err" style="--cc:${cc}"><div class="bar"></div>
-          <div class="pad"><div class="khead"><span class="kname">Notion · IMPORT</span></div>
-          <div class="msg">${esc(c.error||"indisponível")}</div></div></div>`;
-        return;
-      }
-      const when = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString("pt-BR") : "";
-      const item = (r)=>{
-        const sub = (r.subpages&&r.subpages.length)
-          ? `<div class="ksub">${r.subpages.map(s=>`<a class="subtag" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>`).join("")}</div>`
-          : "";
-        const prev = r.preview ? `<div class="kp">${esc(r.preview)}</div>` : "";
-        return `<div class="kitem"><a class="kt" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title||"(sem título)")}</a>${prev}${sub}</div>`;
-      };
-      const list = (c.recent&&c.recent.length)
-        ? `<div class="list">${c.recent.map(item).join("")}</div>`
-        : `<div class="empty2">nada recente</div>`;
-      const allp = (c.allpages&&c.allpages.length)
-        ? `<div class="pgsec"><div class="todohead">Todas as subpáginas · ${c.allpages.length}</div>
-            <div class="pglist">${c.allpages.map(p=>`<a class="pglink" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`).join("")}</div></div>`
-        : "";
-      const todoItems = (c.todos||[]).map(t=>
-        `<div class="todo ${t.checked?"done":""}" data-id="${esc(t.id)}">
-           <button class="box tdbox" data-id="${esc(t.id)}" title="marcar">${t.checked?"✓":""}</button>
-           <span class="tdtext">${esc(t.text||"")}</span>
-           <button class="tddel" data-id="${esc(t.id)}" title="remover">×</button>
-         </div>`).join("");
-      const todos = `<div class="todos"><div class="todohead">To-do</div>
-          ${todoItems || '<div class="empty2">sem tarefas</div>'}
-          <div class="tdadd">
-            <input class="tdaddinput" type="text" placeholder="nova tarefa" autocomplete="off"/>
-            <button class="tdaddbtn" title="adicionar">+</button>
-          </div></div>`;
-      box.innerHTML = `<div class="card" style="--cc:${cc}"><div class="bar"></div><div class="pad">
-        <div class="khead"><span class="kname">Notion · IMPORT</span><span class="tag">real</span></div>
-        <div class="big"><span class="num mono">${c.count.toLocaleString("pt-BR")}</span><span class="unit">${esc(c.label||"itens")}</span></div>
-        ${list}
-        ${allp}
-        ${todos}
-        <div class="kfoot"><span class="when">${when||"—"}</span>
-          <a class="go" href="${esc(c.url)}" target="_blank" rel="noopener">abrir <span class="arw">→</span></a></div>
-      </div>`;
-    }
-
-    // ── to-do interativo ──────────────────────────────────────────────────────
-    async function todoPost(action, payload){
-      const r = await fetch("/api/notion/todo/"+action, {
-        method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify(payload||{}) });
-      if(!r.ok) throw new Error("falhou");
-      return (await r.json()).todos;
-    }
-    function onToggle(id){
-      const t = (cards.notion?.todos||[]).find(x=>x.id===id); if(!t) return;
-      t.checked = !t.checked; renderNotion();                         // otimista
-      todoPost("toggle",{id,checked:t.checked})
-        .then(todos=>{ cards.notion.todos=todos; renderNotion(); })
-        .catch(()=>{ t.checked=!t.checked; renderNotion(); });
-    }
-    function onDelete(id){
-      const el = document.querySelector(`.todo[data-id="${CSS.escape(id)}"]`); if(el) el.classList.add("pending");
-      todoPost("delete",{id}).then(todos=>{ cards.notion.todos=todos; renderNotion(); })
-        .catch(()=>{ if(el) el.classList.remove("pending"); });
-    }
-    function onAdd(input){
-      const text = (input.value||"").trim(); if(!text) return;
-      input.value=""; input.disabled=true;
-      todoPost("add",{text}).then(todos=>{ cards.notion.todos=todos; renderNotion();
-        const ni=document.querySelector(".tdaddinput"); if(ni) ni.focus(); })
-        .catch(()=>{ input.disabled=false; input.value=text; });
-    }
-    function wireTodos(){
-      const box = document.getElementById("notion");
-      box.addEventListener("click", e=>{
-        const tb=e.target.closest(".tdbox"); if(tb){ onToggle(tb.dataset.id); return; }
-        const dl=e.target.closest(".tddel"); if(dl){ onDelete(dl.dataset.id); return; }
-        const ab=e.target.closest(".tdaddbtn"); if(ab){ onAdd(box.querySelector(".tdaddinput")); return; }
-      });
-      box.addEventListener("keydown", e=>{
-        if(e.target.classList.contains("tdaddinput") && e.key==="Enter") onAdd(e.target);
-      });
-    }
-
     async function load(){
       try{
         const r = await fetch("/api/stats");
@@ -267,10 +116,8 @@
         cards = Object.fromEntries(data.cards.map(c=>[c.key,c]));
       }catch(e){ cards = {}; }
       renderTabs();
-      renderNotion();
       if (!active) selectTab(cards.refs?.url ? "refs" : TABS[0].key);
     }
-    wireTodos();
     load();
   </script>
 </body>

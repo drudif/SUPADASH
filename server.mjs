@@ -1,13 +1,10 @@
-// Dash — hub/launcher dos projetos (REFS, LATEFEED, NOTION).
-// Faz fetch server-side das 3 fontes, cacheia e serve a página com os cards.
-// Padrão espelhado do refs-catalog/server.mjs (Node http puro, sem framework).
+// Dash — hub/launcher dos projetos (REFS, LATEFEED, APPFLOWY).
+// Node http puro (padrão espelhado do refs-catalog/server.mjs), com login.
 //
-// Fontes:
-// - REFS (refs-catalog): lê refs-data.js estático e conta refs.length. Não exige token.
-// - LATEFEED (portal-inputs): GET /api/summary protegido por SUMMARY_TOKEN.
-// - NOTION (notion-clone):    GET /api/summary protegido por SUMMARY_TOKEN.
-//
-// Cada card é resiliente: se uma fonte cair, as outras seguem aparecendo.
+// Abas (iframe do app real):
+// - REFS (refs-catalog): também expõe contagem via refs-data.js estático.
+// - LATEFEED (portal-inputs): também expõe contagem via GET /api/summary (SUMMARY_TOKEN).
+// - APPFLOWY: iframe do AppFlowy Web self-hosted (APPFLOWY_URL).
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -34,9 +31,6 @@ const PORT = process.env.PORT || 4200;
 const HOST = process.env.PORT ? "0.0.0.0" : "127.0.0.1";
 const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 60_000);
 const SUMMARY_TOKEN = process.env.SUMMARY_TOKEN || "";
-const NOTION_TOKEN = process.env.NOTION_TOKEN || "";
-const NOTION_PAGE_ID = (process.env.NOTION_PARENT_PAGE_ID || "").replace(/-/g, "");
-const NOTION_TODO_ID = (process.env.NOTION_TODO_PAGE_ID || "").replace(/-/g, "");
 
 // ── Auth do dash ──────────────────────────────────────────────────────────────
 // Se DASH_PASSWORD estiver definido, todo o dash exige login (cookie httpOnly).
@@ -112,13 +106,10 @@ const SOURCES = {
     desc: "Portal de inputs",
     url: clean(process.env.LATEFEED_URL),
   },
-  notion: {
-    label: "NOTION",
-    desc: "Página IMPORT",
-    // No modo API oficial, o "abrir" leva à própria página IMPORT.
-    url: NOTION_TOKEN && NOTION_PAGE_ID
-      ? `https://www.notion.so/${NOTION_PAGE_ID}`
-      : clean(process.env.NOTION_URL),
+  appflowy: {
+    label: "APPFLOWY",
+    desc: "Workspace",
+    url: clean(process.env.APPFLOWY_URL),
   },
 };
 
@@ -163,134 +154,15 @@ async function fetchSummary({ url }) {
   };
 }
 
-// NOTION (opção C): API oficial da página IMPORT.
-// Traz: contagem + recentes (com prévia de conteúdo + subpáginas) + to-dos.
-const NOTION_HEADERS = {
-  Authorization: `Bearer ${NOTION_TOKEN}`,
-  "Notion-Version": "2022-06-28",
-  "Content-Type": "application/json",
-};
-const notionUrl = (id) => `https://www.notion.so/${String(id).replace(/-/g, "")}`;
-const richText = (rt) => (Array.isArray(rt) ? rt.map((s) => s.plain_text || "").join("") : "");
-
-// blocos com texto que servem de prévia
-const TEXT_BLOCKS = ["paragraph", "heading_1", "heading_2", "heading_3",
-  "bulleted_list_item", "numbered_list_item", "quote", "callout", "to_do"];
-
-// baixa (com paginação) os blocos-filhos de um bloco/página
-async function notionChildren(id) {
-  const out = [];
-  let cursor;
-  do {
-    const u = new URL(`https://api.notion.com/v1/blocks/${id}/children`);
-    u.searchParams.set("page_size", "100");
-    if (cursor) u.searchParams.set("start_cursor", cursor);
-    const res = await fetch(u, { headers: NOTION_HEADERS, signal: AbortSignal.timeout(8000) });
-    if (!res.ok) throw new Error(`Notion HTTP ${res.status}`);
-    const data = await res.json();
-    out.push(...(data.results || []));
-    cursor = data.has_more ? data.next_cursor : null;
-  } while (cursor);
-  return out;
-}
-
-// para uma página: prévia (~160 chars) + subpáginas diretas
-async function notionPageDetail(pageId) {
-  try {
-    const blocks = await notionChildren(pageId);
-    let preview = "";
-    const subpages = [];
-    for (const b of blocks) {
-      if (b.type === "child_page") {
-        subpages.push({ title: b.child_page?.title || "(sem título)", url: notionUrl(b.id) });
-      } else if (preview.length < 160 && TEXT_BLOCKS.includes(b.type)) {
-        const t = richText(b[b.type]?.rich_text).trim();
-        if (t) preview += (preview ? " · " : "") + t;
-      }
-    }
-    return { preview: preview.slice(0, 160), subpages: subpages.slice(0, 6) };
-  } catch {
-    return { preview: "", subpages: [] };
-  }
-}
-
-// to-dos da subpágina dedicada
-async function notionTodos() {
-  if (!NOTION_TODO_ID) return [];
-  try {
-    const blocks = await notionChildren(NOTION_TODO_ID);
-    return blocks
-      .filter((b) => b.type === "to_do")
-      .map((b) => ({ id: b.id, text: richText(b.to_do?.rich_text), checked: !!b.to_do?.checked }));
-  } catch {
-    return [];
-  }
-}
-
-// ── escrita de to-dos (o dash atua server-side; token nunca vai ao browser) ────
-async function notionWrite(url, method, body) {
-  const res = await fetch(url, {
-    method, headers: NOTION_HEADERS,
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!res.ok) throw new Error(`Notion HTTP ${res.status}`);
-  return res.json();
-}
-const toggleTodo = (id, checked) =>
-  notionWrite(`https://api.notion.com/v1/blocks/${id}`, "PATCH", { to_do: { checked: !!checked } });
-const addTodo = (text) =>
-  notionWrite(`https://api.notion.com/v1/blocks/${NOTION_TODO_ID}/children`, "PATCH", {
-    children: [{ object: "block", type: "to_do", to_do: { rich_text: [{ text: { content: text } }], checked: false } }],
-  });
-const deleteTodo = (id) =>
-  notionWrite(`https://api.notion.com/v1/blocks/${id}`, "DELETE");
-
-async function fetchNotion() {
-  const top = await notionChildren(NOTION_PAGE_ID);
-  // páginas de conteúdo = child_page, exceto a subpágina de to-do
-  const pages = top.filter((b) => b.type === "child_page" && b.id.replace(/-/g, "") !== NOTION_TODO_ID);
-
-  const sorted = [...pages].sort((a, b) =>
-    String(b.last_edited_time).localeCompare(String(a.last_edited_time)));
-  const top3 = sorted.slice(0, 3);
-
-  // detalhes das 3 recentes + to-dos, em paralelo
-  const [details, todos] = await Promise.all([
-    Promise.all(top3.map((b) => notionPageDetail(b.id))),
-    notionTodos(),
-  ]);
-
-  const recent = top3.map((b, i) => ({
-    title: b.child_page?.title || "(sem título)",
-    url: notionUrl(b.id),
-    createdAt: b.last_edited_time || null,
-    source: "notion",
-    preview: details[i].preview,
-    subpages: details[i].subpages,
-  }));
-
-  // lista completa de subpáginas diretas da IMPORT (todas), ordenadas por edição
-  const allpages = sorted.map((b) => ({
-    title: b.child_page?.title || "(sem título)",
-    url: notionUrl(b.id),
-  }));
-
-  return {
-    count: pages.length,
-    label: "páginas",
-    updatedAt: recent[0]?.createdAt || null,
-    recent,
-    allpages,
-    todos,
-  };
+// APPFLOWY: só embeda via iframe (AppFlowy Web self-hosted). Sem stats.
+async function fetchAppflowy() {
+  return {};
 }
 
 const ADAPTERS = {
   refs: fetchRefs,
   latefeed: fetchSummary,
-  // usa a API oficial se houver token+page; senão cai no /api/summary do notion-clone.
-  notion: (src) => (NOTION_TOKEN && NOTION_PAGE_ID ? fetchNotion() : fetchSummary(src)),
+  appflowy: fetchAppflowy,
 };
 
 // ── Cache + agregação ────────────────────────────────────────────────────────
@@ -353,35 +225,6 @@ const server = http.createServer(async (req, res) => {
       } else {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         res.end(loginPage(false));
-      }
-      return;
-    }
-
-    // ── to-do interativo (POST) ──────────────────────────────────────────────
-    if (req.method === "POST" && pathname.startsWith("/api/notion/todo/")) {
-      if (!NOTION_TOKEN || !NOTION_TODO_ID) {
-        res.writeHead(400, { "content-type": "application/json" });
-        res.end('{"error":"notion todo não configurado"}');
-        return;
-      }
-      let body = {};
-      try { body = JSON.parse((await readBody(req)) || "{}"); } catch { /* ignore */ }
-      const action = pathname.slice("/api/notion/todo/".length);
-      try {
-        if (action === "toggle") await toggleTodo(body.id, body.checked);
-        else if (action === "add") {
-          const t = String(body.text || "").trim();
-          if (!t) throw new Error("texto vazio");
-          await addTodo(t);
-        } else if (action === "delete") await deleteTodo(body.id);
-        else { res.writeHead(404).end('{"error":"ação inválida"}'); return; }
-        cache = { at: 0, data: null };           // invalida cache p/ refletir
-        const todos = await notionTodos();
-        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ todos }));
-      } catch (e) {
-        res.writeHead(500, { "content-type": "application/json" });
-        res.end(JSON.stringify({ error: String(e.message || e) }));
       }
       return;
     }
