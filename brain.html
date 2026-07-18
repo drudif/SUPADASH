@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cérebro</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&display=swap');
+    @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
+
+    :root{
+      --paper:#f4efe6; --paper-2:#faf6ee; --ink:#191512; --ink-2:#4c463d; --ink-3:#8a8272;
+      --line:#191512; --hair:#d8d0c0;
+      --refs:#e8551e; --latefeed:#0e8ba0; --notion:#7c3aed;
+      --serif:"DM Serif Display",Georgia,"Times New Roman",serif;
+      --sans:"Satoshi","Helvetica Neue",system-ui,Arial,sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-weight:500;line-height:1.5;
+      -webkit-font-smoothing:antialiased;font-feature-settings:"ss01";overflow:hidden;height:100vh;display:flex;flex-direction:column}
+    a{color:inherit;text-decoration:none}
+    ::selection{background:var(--ink);color:var(--paper)}
+    button{font-family:inherit;cursor:pointer}
+    .mono{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+
+    /* ---------- TOPBAR ---------- */
+    .topbar{flex-shrink:0;border-bottom:1.5px solid var(--line);background:var(--paper);z-index:20;
+      display:flex;align-items:center;gap:clamp(12px,2vw,26px);padding:12px clamp(14px,2.4vw,28px);flex-wrap:wrap}
+    .brand{font-family:var(--serif);font-weight:400;font-size:clamp(24px,3vw,36px);line-height:.9;letter-spacing:-.02em;white-space:nowrap}
+    .brand .dot{color:var(--refs)}
+    .legend{display:flex;gap:14px;flex-wrap:wrap}
+    .lg{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+      font-weight:700;color:var(--ink-3);cursor:pointer;user-select:none;transition:color .15s}
+    .lg:hover{color:var(--ink)}
+    .lg .swatch{width:11px;height:11px;border-radius:999px;flex-shrink:0;border:1.5px solid var(--line)}
+    .lg .n{color:var(--ink-3);font-weight:500}
+    .lg.off{opacity:.32}
+    .topbar .spacer{flex:1;min-width:8px}
+    .search{position:relative;display:flex;align-items:center}
+    .search input{border:1.5px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);
+      font-family:inherit;font-size:12.5px;font-weight:500;padding:8px 32px 8px 15px;width:clamp(140px,17vw,220px);outline:none}
+    .search input::placeholder{color:var(--ink-3)}
+    .search input:focus{background:var(--paper-2)}
+    .search .clr{position:absolute;right:9px;border:none;background:none;color:var(--ink-3);font-size:15px;line-height:1;
+      padding:2px;display:none}
+    .search .clr:hover{color:var(--ink)} .search.has .clr{display:block}
+    .btn{border:1.5px solid var(--line);background:transparent;color:var(--ink);padding:8px 16px;border-radius:999px;
+      font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;
+      transition:background .15s,color .15s;white-space:nowrap}
+    .btn:hover{background:var(--ink);color:var(--paper)}
+    .btn[disabled]{opacity:.5;pointer-events:none}
+    .btn .spin{width:11px;height:11px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:999px;
+      display:none;animation:sp .7s linear infinite}
+    .btn.busy .spin{display:inline-block} .btn.busy .lbl{opacity:.6}
+    @keyframes sp{to{transform:rotate(360deg)}}
+    .panelToggle{display:none}
+
+    /* ---------- STAGE ---------- */
+    .stage{flex:1;display:flex;min-height:0;position:relative}
+    .graphwrap{flex:1;position:relative;min-width:0;background:var(--paper)}
+    #graph{width:100%;height:100%;display:block}
+    #graph canvas{display:block}
+
+    .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
+      gap:16px;text-align:center;padding:40px;pointer-events:none;z-index:5;transition:opacity .3s}
+    .overlay .big{font-family:var(--serif);font-size:clamp(22px,3vw,34px);color:var(--ink-3);letter-spacing:-.01em}
+    .overlay .sub{font-size:13px;color:var(--ink-3);max-width:360px;line-height:1.5}
+    .overlay .act{pointer-events:auto;margin-top:6px}
+    .overlay.hidden{opacity:0;pointer-events:none}
+    .overlay.err .big{color:var(--refs)}
+    .loaddots::after{content:"";animation:dots 1.3s steps(4,end) infinite}
+    @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+
+    /* ---------- PANEL ---------- */
+    .panel{flex-shrink:0;width:clamp(300px,25vw,360px);border-left:1.5px solid var(--line);background:var(--paper);
+      overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;transition:margin-right .25s ease, transform .25s ease;z-index:15}
+    .panel.collapsed{margin-right:calc(-1 * clamp(300px,25vw,360px))}
+    .phead{position:sticky;top:0;background:var(--paper);border-bottom:1.5px solid var(--hair);z-index:2;
+      display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px clamp(16px,1.6vw,22px) 12px}
+    .phead .ptitle{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+    .phead .x{border:none;background:none;color:var(--ink-3);font-size:20px;line-height:1;padding:2px 4px}
+    .phead .x:hover{color:var(--ink)}
+    .pbody{padding:clamp(16px,1.6vw,22px);display:flex;flex-direction:column;gap:22px;flex:1}
+
+    /* focus node */
+    .fsource{display:inline-flex;align-items:center;gap:8px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+      font-weight:700;color:var(--cc);border:1.5px solid var(--cc);padding:4px 11px;border-radius:999px;align-self:flex-start;line-height:1}
+    .ftitle{font-family:var(--serif);font-weight:400;font-size:clamp(22px,2.4vw,28px);line-height:1.08;letter-spacing:-.01em;color:var(--ink)}
+    a.ftitle:hover{color:var(--cc)}
+    .fmeta{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+    .fsummary{font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+    .fgo{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);font-weight:700;
+      display:inline-flex;align-items:center;gap:6px;align-self:flex-start}
+    .fgo:hover{color:var(--cc)} .fgo .arw{transition:transform .25s} .fgo:hover .arw{transform:translateX(4px)}
+
+    .seclabel{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:700;
+      display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding-bottom:2px}
+    .seclabel .c{font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums}
+
+    .chips{display:flex;flex-wrap:wrap;gap:6px}
+    .chip{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;color:var(--ink-2);
+      border:1.5px solid var(--hair);padding:4px 9px;border-radius:999px;line-height:1.35;background:transparent;transition:border-color .12s,color .12s,background .12s}
+    .chip:hover{border-color:var(--ink);color:var(--ink)}
+    .chip .n{color:var(--ink-3);font-weight:500;margin-left:5px}
+    .chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink)} .chip.active .n{color:rgba(244,239,230,.7)}
+
+    .neighbors{display:flex;flex-direction:column;gap:0}
+    .nbr{display:flex;flex-direction:column;gap:5px;padding:13px 0;border-top:1.5px solid var(--hair)}
+    .nbr:first-child{border-top:none;padding-top:4px}
+    .nbr .nhead{display:flex;align-items:baseline;gap:9px}
+    .nbr .dot{width:8px;height:8px;border-radius:999px;flex-shrink:0;background:var(--cc);margin-top:5px;border:1.5px solid rgba(0,0,0,.12)}
+    .nbr .ntitle{flex:1;font-family:var(--serif);font-size:16px;line-height:1.12;letter-spacing:-.01em;color:var(--ink)}
+    .nbr .ntitle:hover{color:var(--cc)}
+    .nbr .w{flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--ink-3);font-variant-numeric:tabular-nums;
+      border:1.5px solid var(--hair);border-radius:999px;padding:2px 7px;line-height:1.3}
+    .nbr .nshared{display:flex;flex-wrap:wrap;gap:4px;padding-left:17px}
+    .nbr .stag{font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;color:var(--ink-3);
+      border:1px solid var(--hair);padding:2px 6px;border-radius:999px;line-height:1.3}
+    .nbr .nfoot{padding-left:17px}
+    .nbr .norigin{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;
+      display:inline-flex;align-items:center;gap:5px}
+    .nbr .norigin:hover{color:var(--cc)}
+
+    /* source counts (default panel) */
+    .counts{display:flex;flex-direction:column;gap:10px}
+    .crow{display:flex;align-items:center;gap:11px;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;
+      transition:background .15s}
+    .crow:hover{background:var(--paper-2)}
+    .crow .bar{width:5px;align-self:stretch;border-radius:999px;background:var(--cc);flex-shrink:0}
+    .crow .cname{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);font-weight:700;flex:1}
+    .crow .cnum{font-family:var(--serif);font-weight:400;font-size:30px;line-height:.8;letter-spacing:-.02em;color:var(--ink)}
+
+    .empty{font-size:13px;color:var(--ink-3)}
+
+    /* floating open-panel tab when collapsed */
+    .reopen{position:absolute;top:16px;right:0;z-index:16;border:1.5px solid var(--line);border-right:none;background:var(--paper);
+      border-radius:12px 0 0 12px;padding:10px 12px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--ink);display:none;align-items:center;gap:7px;box-shadow:-2px 2px 0 rgba(25,21,18,.06)}
+    .reopen:hover{background:var(--ink);color:var(--paper)}
+    .panel.collapsed ~ .reopen{display:inline-flex}
+
+    /* ---------- responsivo: painel vira overlay ---------- */
+    @media(max-width:760px){
+      .panel{position:absolute;top:0;right:0;bottom:0;width:min(88vw,360px);border-left:1.5px solid var(--line);
+        box-shadow:-6px 0 24px rgba(25,21,18,.12)}
+      .panel.collapsed{margin-right:0;transform:translateX(100%)}
+      .reopen{top:12px}
+    }
+    @media(max-width:520px){
+      .brand{font-size:22px}
+      .legend{order:3;width:100%}
+      .search input{width:100%}
+      .search{flex:1}
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="brand">Cérebro<span class="dot">.</span></span>
+    <nav class="legend" id="legend"></nav>
+    <span class="spacer"></span>
+    <div class="search" id="searchWrap">
+      <input id="search" type="text" placeholder="buscar nó…" autocomplete="off" spellcheck="false"/>
+      <button class="clr" id="searchClr" title="limpar">×</button>
+    </div>
+    <button class="btn" id="resync" title="re-sincronizar as 3 fontes">
+      <span class="spin"></span><span class="lbl">resync</span>
+    </button>
+  </div>
+
+  <div class="stage">
+    <div class="graphwrap">
+      <div id="graph"></div>
+      <div class="overlay" id="overlay">
+        <div class="big loaddots" id="ovBig">carregando</div>
+        <div class="sub" id="ovSub"></div>
+        <button class="btn act" id="ovAct" style="display:none"></button>
+      </div>
+    </div>
+
+    <aside class="panel" id="panel">
+      <div class="phead">
+        <span class="ptitle" id="ptitle">Visão geral</span>
+        <button class="x" id="panelX" title="recolher">×</button>
+      </div>
+      <div class="pbody" id="pbody"></div>
+    </aside>
+    <button class="reopen" id="reopen">foco <span>‹</span></button>
+  </div>
+
+  <script src="/vendor/force-graph.min.js"></script>
+  <script>
+  (function(){
+    "use strict";
+    const esc = (s)=>String(s==null?"":s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+    const SRC = {
+      refs:     { label:"REFS",     color:"#e8551e", css:"var(--refs)" },
+      latefeed: { label:"LATEFEED", color:"#0e8ba0", css:"var(--latefeed)" },
+      notion:   { label:"NOTION",   color:"#7c3aed", css:"var(--notion)" },
+    };
+    const srcColor = (s)=> (SRC[s]&&SRC[s].color) || "#8a8272";
+    const srcCss   = (s)=> (SRC[s]&&SRC[s].css)   || "var(--ink-3)";
+    const srcLabel = (s)=> (SRC[s]&&SRC[s].label) || String(s||"").toUpperCase();
+
+    // ---- state ----
+    let G = null;
+    let DATA = { nodes:[], links:[], concepts:[] };
+    let byId = new Map();
+    let focusId = null;            // nó focado
+    let focusNeighbors = new Set();// ids destacados no foco
+    let searchTerm = "";
+    let searchHits = null;         // Set de ids que batem na busca (null = sem busca)
+    let activeConcept = null;      // conceito realçado (default panel)
+    let conceptHits = null;        // Set de ids do conceito ativo
+    const offSources = new Set();  // fontes ocultadas na legenda
+
+    const $  = (id)=>document.getElementById(id);
+    const overlay = $("overlay"), ovBig=$("ovBig"), ovSub=$("ovSub"), ovAct=$("ovAct");
+    const panel = $("panel"), pbody=$("pbody"), ptitle=$("ptitle");
+
+    function showOverlay(kind, big, sub, actLabel, actFn){
+      overlay.classList.remove("hidden","err");
+      if(kind==="err") overlay.classList.add("err");
+      ovBig.textContent = big;
+      ovBig.classList.toggle("loaddots", kind==="loading");
+      ovSub.textContent = sub||"";
+      if(actLabel){ ovAct.style.display=""; ovAct.textContent=actLabel; ovAct.onclick=actFn; }
+      else ovAct.style.display="none";
+    }
+    const hideOverlay = ()=> overlay.classList.add("hidden");
+
+    // ---- highlight logic ----
+    function activeHighlightSet(){
+      // prioridade: foco > conceito > busca. retorna Set de ids realçados ou null (tudo normal)
+      if(focusId!=null){ const s=new Set(focusNeighbors); s.add(focusId); return s; }
+      if(conceptHits) return conceptHits;
+      if(searchHits) return searchHits;
+      return null;
+    }
+    function isDim(node){
+      if(offSources.has(node.source)) return true;
+      const hi = activeHighlightSet();
+      if(!hi) return false;
+      return !hi.has(node.id);
+    }
+    function nodeColor(node){
+      if(isDim(node)) return "rgba(138,130,114,0.16)";
+      return srcColor(node.source);
+    }
+    function linkColor(link){
+      const s = typeof link.source==="object"? link.source : byId.get(link.source);
+      const t = typeof link.target==="object"? link.target : byId.get(link.target);
+      const hi = activeHighlightSet();
+      const sid = s? s.id : link.source, tid = t? t.id : link.target;
+      const dimBySrc = (s&&offSources.has(s.source)) || (t&&offSources.has(t.source));
+      if(dimBySrc) return "rgba(25,21,18,0.03)";
+      if(focusId!=null){
+        if(sid===focusId || tid===focusId) return "rgba(25,21,18,0.42)";
+        return "rgba(25,21,18,0.03)";
+      }
+      if(hi){
+        if(hi.has(sid) && hi.has(tid)) return "rgba(25,21,18,0.30)";
+        return "rgba(25,21,18,0.04)";
+      }
+      return "rgba(25,21,18,0.13)";
+    }
+    function linkWidth(link){
+      const w = link.weight||1;
+      if(focusId!=null){
+        const sid = typeof link.source==="object"?link.source.id:link.source;
+        const tid = typeof link.target==="object"?link.target.id:link.target;
+        if(sid===focusId||tid===focusId) return Math.min(4, 1+w*0.6);
+      }
+      return Math.min(2.5, 0.5+w*0.35);
+    }
+    function refresh(){
+      if(!G) return;
+      G.nodeColor(nodeColor).linkColor(linkColor).linkWidth(linkWidth);
+    }
+
+    // ---- build graph ----
+    function buildGraph(){
+      const el = $("graph");
+      el.innerHTML="";
+      const links = DATA.links.map(l=>({ source:l.source, target:l.target, weight:l.weight||1, concepts:l.concepts||[] }));
+      G = ForceGraph()(el)
+        .backgroundColor("rgba(0,0,0,0)")
+        .graphData({ nodes: DATA.nodes.map(n=>Object.assign({},n)), links })
+        .nodeId("id")
+        .nodeRelSize(4)
+        .nodeVal(n=> 1 + (n.degree||0))
+        .nodeColor(nodeColor)
+        .linkColor(linkColor)
+        .linkWidth(linkWidth)
+        .nodeCanvasObjectMode(()=> (focusId!=null || searchHits) ? "after" : undefined)
+        .nodeCanvasObject((node,ctx,scale)=>{
+          // desenha rótulo para o nó focado, vizinhos e resultados de busca
+          const hi = activeHighlightSet();
+          const focused = node.id===focusId;
+          const inSearch = searchHits && searchHits.has(node.id);
+          if(!focused && !inSearch) return;
+          if(hi && !hi.has(node.id) && !inSearch) return;
+          const label = String(node.title||"");
+          if(!label) return;
+          const fs = Math.max(10/scale, (focused?13:11)/scale);
+          ctx.font = `${focused?700:500} ${fs}px Satoshi, sans-serif`;
+          const r = Math.sqrt(1+(node.degree||0))*4/scale + 3/scale;
+          const tw = ctx.measureText(label).width;
+          const pad = 3/scale;
+          ctx.fillStyle="rgba(244,239,230,0.82)";
+          ctx.fillRect(node.x - tw/2 - pad, node.y + r, tw + pad*2, fs + pad*1.5);
+          ctx.textAlign="center"; ctx.textBaseline="top";
+          ctx.fillStyle= focused ? srcColor(node.source) : "#4c463d";
+          ctx.fillText(label, node.x, node.y + r + pad*0.5);
+        })
+        .onNodeClick(n=>{ openFocus(n.id); })
+        .onBackgroundClick(()=>{ clearFocus(); })
+        .onNodeHover(n=>{ el.style.cursor = n? "pointer":"default"; });
+      // afrouxa um pouco a repulsão em grafos grandes
+      try{ G.d3Force("charge").strength(-90); }catch(e){}
+    }
+
+    // ---- FOCUS (node detail) ----
+    async function openFocus(id){
+      focusId = id;
+      activeConcept = null; conceptHits = null;
+      panel.classList.remove("collapsed");
+      ptitle.textContent = "Foco";
+      // realce imediato com vizinhos conhecidos do grafo enquanto busca detalhe
+      focusNeighbors = neighborsFromLinks(id);
+      refresh();
+      renderFocusLoading(id);
+      centerOn(id);
+      try{
+        const r = await fetch("/api/brain/node/"+encodeURIComponent(id));
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        const d = await r.json();
+        if(focusId!==id) return; // usuário mudou de nó
+        focusNeighbors = new Set((d.neighbors||[]).map(n=>n.id)); focusNeighbors.add(id);
+        refresh();
+        renderFocus(d);
+      }catch(e){
+        if(focusId!==id) return;
+        renderFocusError(id, e);
+      }
+    }
+    function neighborsFromLinks(id){
+      const s = new Set([id]);
+      DATA.links.forEach(l=>{
+        const a = typeof l.source==="object"?l.source.id:l.source;
+        const b = typeof l.target==="object"?l.target.id:l.target;
+        if(a===id) s.add(b); else if(b===id) s.add(a);
+      });
+      return s;
+    }
+    function clearFocus(){
+      if(focusId==null) return;
+      focusId=null; focusNeighbors=new Set();
+      refresh(); renderDefaultPanel();
+    }
+    function centerOn(id){
+      if(!G) return;
+      const n = (G.graphData().nodes||[]).find(x=>x.id===id);
+      if(n && typeof n.x==="number"){ G.centerAt(n.x, n.y, 600); G.zoom(Math.max(G.zoom(), 2.2), 600); }
+    }
+
+    function renderFocusLoading(id){
+      const n = byId.get(id) || {};
+      ptitle.textContent="Foco";
+      pbody.innerHTML =
+        `<span class="fsource" style="--cc:${srcCss(n.source)}">${esc(srcLabel(n.source))}</span>`+
+        `<div class="ftitle">${esc(n.title||"(sem título)")}</div>`+
+        `<div class="empty loaddots">carregando conexões</div>`;
+    }
+    function renderFocusError(id,e){
+      const n = byId.get(id) || {};
+      pbody.innerHTML =
+        `<span class="fsource" style="--cc:${srcCss(n.source)}">${esc(srcLabel(n.source))}</span>`+
+        `<div class="ftitle">${esc(n.title||"(sem título)")}</div>`+
+        `<div class="empty" style="color:var(--refs)">erro ao carregar o nó (${esc(e.message||e)}).</div>`;
+    }
+    function renderFocus(d){
+      const node = d.node||{};
+      const cc = srcCss(node.source);
+      const titleHtml = node.url
+        ? `<a class="ftitle" href="${esc(node.url)}" target="_blank" rel="noopener" style="--cc:${cc}">${esc(node.title||"(sem título)")}</a>`
+        : `<div class="ftitle">${esc(node.title||"(sem título)")}</div>`;
+      const when = node.createdAt ? new Date(node.createdAt).toLocaleDateString("pt-BR") : "";
+      const meta = `<div class="fmeta">${esc(srcLabel(node.source))}${when?` · ${esc(when)}`:""}</div>`;
+      const summary = node.summary ? `<div class="fsummary">${esc(node.summary)}</div>` : "";
+      const go = node.url ? `<a class="fgo" href="${esc(node.url)}" target="_blank" rel="noopener" style="--cc:${cc}">abrir na origem <span class="arw">→</span></a>` : "";
+      const cons = (d.concepts||[]);
+      const conceptsHtml = cons.length
+        ? `<div><div class="seclabel">Conceitos <span class="c mono">${cons.length}</span></div>
+             <div class="chips" style="margin-top:9px">${cons.map(c=>`<span class="chip">${esc(c)}</span>`).join("")}</div></div>`
+        : "";
+      const nbrs = (d.neighbors||[]).slice().sort((a,b)=>(b.weight||0)-(a.weight||0));
+      const nbrHtml = nbrs.length
+        ? `<div class="neighbors">${nbrs.map(nb=>{
+            const ncc = srcCss(nb.source);
+            const shared = (nb.shared||[]).length
+              ? `<div class="nshared">${nb.shared.map(s=>`<span class="stag">${esc(s)}</span>`).join("")}</div>` : "";
+            const origin = nb.url
+              ? `<div class="nfoot"><a class="norigin" href="${esc(nb.url)}" target="_blank" rel="noopener" style="--cc:${ncc}">${esc(srcLabel(nb.source))} ↗</a></div>` : "";
+            return `<div class="nbr" style="--cc:${ncc}">
+                <div class="nhead">
+                  <span class="dot"></span>
+                  <button class="ntitle" data-goto="${esc(nb.id)}" style="text-align:left;border:none;background:none;padding:0;font-family:var(--serif)">${esc(nb.title||"(sem título)")}</button>
+                  <span class="w mono">${esc(String(nb.weight||1))}</span>
+                </div>${shared}${origin}
+              </div>`;
+          }).join("")}</div>`
+        : `<div class="empty">sem conexões.</div>`;
+      pbody.innerHTML =
+        `<span class="fsource" style="--cc:${cc}">${esc(srcLabel(node.source))}</span>`+
+        titleHtml + meta + summary + go +
+        conceptsHtml +
+        `<div><div class="seclabel">Conexões <span class="c mono">${nbrs.length}</span></div>
+           <div style="margin-top:8px">${nbrHtml}</div></div>`;
+      pbody.querySelectorAll("[data-goto]").forEach(b=> b.onclick=()=> openFocus(b.getAttribute("data-goto")) );
+    }
+
+    // ---- DEFAULT panel (overview) ----
+    function renderDefaultPanel(){
+      ptitle.textContent="Visão geral";
+      // contagem por fonte
+      const counts = {};
+      DATA.nodes.forEach(n=> counts[n.source]=(counts[n.source]||0)+1 );
+      const order = ["refs","latefeed","notion"].filter(s=> counts[s]).concat(
+        Object.keys(counts).filter(s=> !["refs","latefeed","notion"].includes(s)) );
+      const countsHtml = order.length
+        ? `<div class="counts">${order.map(s=>`
+            <div class="crow" style="--cc:${srcCss(s)}"><span class="bar"></span>
+              <span class="cname">${esc(srcLabel(s))}</span>
+              <span class="cnum mono">${counts[s]}</span></div>`).join("")}</div>`
+        : `<div class="empty">sem nós.</div>`;
+      const cons = (DATA.concepts||[]).slice().sort((a,b)=>(b.count||0)-(a.count||0));
+      const conceptsHtml = cons.length
+        ? `<div class="chips">${cons.map(c=>{
+            const on = activeConcept===c.label;
+            return `<button class="chip${on?" active":""}" data-concept="${esc(c.label)}">${esc(c.label)}<span class="n">${esc(String(c.count||0))}</span></button>`;
+          }).join("")}</div>`
+        : `<div class="empty">nenhum conceito ainda.</div>`;
+      pbody.innerHTML =
+        `<div><div class="seclabel">Nós <span class="c mono">${DATA.nodes.length}</span></div>
+           <div style="margin-top:10px">${countsHtml}</div></div>`+
+        `<div><div class="seclabel">Conceitos <span class="c mono">${cons.length}</span></div>
+           <div style="margin-top:10px">${conceptsHtml}</div></div>`;
+      pbody.querySelectorAll("[data-concept]").forEach(b=> b.onclick=()=> toggleConcept(b.getAttribute("data-concept")) );
+    }
+    function toggleConcept(label){
+      if(activeConcept===label){ activeConcept=null; conceptHits=null; }
+      else {
+        activeConcept=label;
+        const hit = new Set();
+        DATA.links.forEach(l=>{
+          if((l.concepts||[]).includes(label)){
+            hit.add(typeof l.source==="object"?l.source.id:l.source);
+            hit.add(typeof l.target==="object"?l.target.id:l.target);
+          }
+        });
+        // também nós cujo título casa? não — conceitos vêm de links. mantém só links.
+        conceptHits = hit;
+      }
+      refresh(); renderDefaultPanel();
+    }
+
+    // ---- legend ----
+    function renderLegend(){
+      const counts = {};
+      DATA.nodes.forEach(n=> counts[n.source]=(counts[n.source]||0)+1 );
+      const keys = Object.keys(SRC).filter(s=> counts[s]!=null || DATA.nodes.length===0);
+      $("legend").innerHTML = Object.keys(SRC).map(s=>
+        `<span class="lg${offSources.has(s)?" off":""}" data-src="${s}">
+           <span class="swatch" style="background:${SRC[s].color}"></span>${SRC[s].label}
+           <span class="n mono">${counts[s]||0}</span></span>`).join("");
+      $("legend").querySelectorAll(".lg").forEach(el=> el.onclick=()=>{
+        const s = el.dataset.src;
+        if(offSources.has(s)) offSources.delete(s); else offSources.add(s);
+        el.classList.toggle("off", offSources.has(s));
+        refresh();
+      });
+    }
+
+    // ---- search ----
+    function applySearch(term){
+      searchTerm = term.trim().toLowerCase();
+      $("searchWrap").classList.toggle("has", !!searchTerm);
+      if(!searchTerm){ searchHits=null; refresh(); return; }
+      const hit = new Set();
+      DATA.nodes.forEach(n=>{ if(String(n.title||"").toLowerCase().includes(searchTerm)) hit.add(n.id); });
+      searchHits = hit;
+      refresh();
+    }
+
+    // ---- data load ----
+    function ingest(d){
+      DATA = {
+        nodes: Array.isArray(d.nodes)? d.nodes : [],
+        links: Array.isArray(d.links)? d.links : [],
+        concepts: Array.isArray(d.concepts)? d.concepts : [],
+      };
+      byId = new Map(DATA.nodes.map(n=>[n.id, n]));
+    }
+    function afterData(){
+      renderLegend();
+      if(DATA.nodes.length===0){
+        showOverlay("empty","cérebro vazio","Nenhum nó ainda. Rode o sync para conectar REFS, LATEFEED e NOTION.","rodar sync", doResync);
+        ptitle.textContent="Visão geral";
+        pbody.innerHTML = `<div class="empty">Sem dados. Clique em <b>resync</b> para popular o grafo.</div>`;
+        return;
+      }
+      hideOverlay();
+      buildGraph();
+      refresh();
+      if(focusId!=null && byId.has(focusId)){ openFocus(focusId); }
+      else { focusId=null; renderDefaultPanel(); }
+    }
+
+    async function loadGraph(){
+      showOverlay("loading","carregando","montando o segundo cérebro");
+      try{
+        const r = await fetch("/api/brain/graph");
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        const d = await r.json();
+        ingest(d);
+        afterData();
+      }catch(e){
+        showOverlay("err","não deu pra carregar", "Erro ao buscar /api/brain/graph — "+(e.message||e), "tentar de novo", loadGraph);
+      }
+    }
+
+    async function doResync(){
+      const btn = $("resync");
+      btn.classList.add("busy"); btn.disabled=true;
+      showOverlay("loading","re-sincronizando","puxando REFS · LATEFEED · NOTION");
+      try{
+        const r = await fetch("/api/brain/sync",{ method:"POST" });
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        const d = await r.json();
+        ingest(d);
+        // preserva foco se o nó ainda existe
+        if(focusId!=null && !byId.has(focusId)) focusId=null;
+        afterData();
+      }catch(e){
+        showOverlay("err","resync falhou", (e.message||String(e)), "voltar ao grafo", ()=>{ DATA.nodes.length? afterData() : loadGraph(); });
+      }finally{
+        btn.classList.remove("busy"); btn.disabled=false;
+      }
+    }
+
+    // ---- panel collapse ----
+    function collapsePanel(){ panel.classList.add("collapsed"); }
+    function openPanel(){ panel.classList.remove("collapsed"); }
+
+    // ---- wire ----
+    let searchTimer=null;
+    $("search").addEventListener("input", e=>{
+      clearTimeout(searchTimer);
+      const v=e.target.value;
+      searchTimer=setTimeout(()=>applySearch(v), 120);
+    });
+    $("searchClr").onclick=()=>{ $("search").value=""; applySearch(""); $("search").focus(); };
+    $("resync").onclick = doResync;
+    $("panelX").onclick = collapsePanel;
+    $("reopen").onclick = openPanel;
+    document.addEventListener("keydown", e=>{
+      if(e.key==="Escape"){
+        if(focusId!=null){ clearFocus(); }
+        else if(searchTerm){ $("search").value=""; applySearch(""); }
+      }
+      if(e.key==="/" && document.activeElement!==$("search")){ e.preventDefault(); $("search").focus(); }
+    });
+    window.addEventListener("resize", ()=>{ /* force-graph auto-resizes via ResizeObserver */ });
+
+    // ---- go ----
+    renderLegend();
+    loadGraph();
+  })();
+  </script>
+</body>
+</html>

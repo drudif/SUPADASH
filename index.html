@@ -148,6 +148,7 @@
     const TABS = [
       { key:"refs",     label:"REFS",     cc:"var(--design)" },
       { key:"latefeed", label:"LATEFEED", cc:"var(--av)" },
+      { key:"cerebro",  label:"CÉREBRO",  cc:"var(--ai)", url:"/brain" },
     ];
     let cards = {}, active = null;
 
@@ -159,8 +160,8 @@
       const frame = document.getElementById("frame");
       const iframe = document.getElementById("app");
       frame.classList.remove("ready");
-      const embed = c.iframeUrl || c.url;   // usa o proxy local do LATEFEED quando houver
-      if (embed){ iframe.src = embed; document.getElementById("ext").href = c.url || embed; }
+      const embed = c.iframeUrl || c.url || (t && t.url);   // proxy do LATEFEED / página /brain
+      if (embed){ iframe.src = embed; document.getElementById("ext").href = c.url || (t && t.url) || embed; }
       else { iframe.removeAttribute("src"); }
       iframe.onload = ()=>frame.classList.add("ready");
     }

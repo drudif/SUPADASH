@@ -12,6 +12,8 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as brain from "./brain.mjs";
+import * as brainSync from "./sync.mjs";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -392,6 +394,41 @@ const server = http.createServer(async (req, res) => {
         const todos = await notionTodos();
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ todos }));
+      } catch (e) {
+        res.writeHead(500, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: String(e.message || e) }));
+      }
+      return;
+    }
+
+    // ── CÉREBRO (aba /brain) ──────────────────────────────────────────────────
+    if (pathname === "/brain" || pathname === "/brain.html") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(fs.readFileSync(path.join(DIR, "brain.html"), "utf8"));
+      return;
+    }
+    if (pathname === "/vendor/force-graph.min.js") {
+      res.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
+      res.end(fs.readFileSync(path.join(DIR, "vendor", "force-graph.min.js")));
+      return;
+    }
+    if (pathname === "/api/brain/graph") {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(brain.graph()));
+      return;
+    }
+    if (pathname.startsWith("/api/brain/node/")) {
+      const id = decodeURIComponent(pathname.slice("/api/brain/node/".length));
+      const data = brain.focus(id);
+      res.writeHead(data ? 200 : 404, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(data || { error: "not found" }));
+      return;
+    }
+    if (req.method === "POST" && pathname === "/api/brain/sync") {
+      try {
+        const r = await brainSync.run();
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify(r));
       } catch (e) {
         res.writeHead(500, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: String(e.message || e) }));
