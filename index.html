@@ -159,7 +159,8 @@
       const frame = document.getElementById("frame");
       const iframe = document.getElementById("app");
       frame.classList.remove("ready");
-      if (c.url){ iframe.src = c.url; document.getElementById("ext").href = c.url; }
+      const embed = c.iframeUrl || c.url;   // usa o proxy local do LATEFEED quando houver
+      if (embed){ iframe.src = embed; document.getElementById("ext").href = c.url || embed; }
       else { iframe.removeAttribute("src"); }
       iframe.onload = ()=>frame.classList.add("ready");
     }

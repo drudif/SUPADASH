@@ -101,6 +101,18 @@ function readBody(req) {
 
 // URLs públicas das fontes (sem barra no fim). Preencha no .env.
 const clean = (u) => (u || "").replace(/\/+$/, "");
+
+// ── Reverse-proxy local do LATEFEED ───────────────────────────────────────────
+// O portal é privado (auth por cookie). Em iframe cross-domain o cookie de
+// terceiros é frágil. Solução: o dash roda um proxy local que injeta a auth
+// server-side; o iframe aponta pro proxy → navegador nunca lida com 3rd-party
+// cookie e a senha nunca vai pro DOM. Só em dev (Railway expõe 1 porta só).
+const PORTAL_SECRET = process.env.PORTAL_SECRET || "";
+const LATEFEED_URL = clean(process.env.LATEFEED_URL);
+const LATE_PROXY_PORT = Number(process.env.LATE_PROXY_PORT || Number(PORT) + 1);
+const LATE_PROXY_ENABLED = !!(PORTAL_SECRET && LATEFEED_URL && !IS_PROD);
+const LATE_IFRAME_URL = LATE_PROXY_ENABLED ? `http://localhost:${LATE_PROXY_PORT}` : "";
+
 const SOURCES = {
   refs: {
     label: "REFS",
@@ -111,6 +123,7 @@ const SOURCES = {
     label: "LATEFEED",
     desc: "Portal de inputs",
     url: clean(process.env.LATEFEED_URL),
+    iframeUrl: LATE_IFRAME_URL,   // proxy local p/ embedar autenticado (dev)
   },
   notion: {
     label: "NOTION",
@@ -299,7 +312,7 @@ let cache = { at: 0, data: null };
 async function collect() {
   const entries = await Promise.all(
     Object.entries(SOURCES).map(async ([key, src]) => {
-      const base = { key, label: src.label, desc: src.desc, url: src.url };
+      const base = { key, label: src.label, desc: src.desc, url: src.url, iframeUrl: src.iframeUrl || "" };
       if (!src.url) return { ...base, ok: false, error: "URL não configurada" };
       try {
         const stat = await ADAPTERS[key](src);
@@ -409,3 +422,40 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`dash em http://${HOST}:${PORT}`);
 });
+
+// ── Reverse-proxy do LATEFEED (dev) ───────────────────────────────────────────
+// Encaminha tudo pro portal injetando o cookie de auth; remove headers que
+// atrapalham o embed (set-cookie do portal, XFO/CSP, encoding). Assets e /api
+// do portal são relativos, então funcionam via proxy sem reescrita.
+if (LATE_PROXY_ENABLED) {
+  const DROP_REQ = new Set(["host", "cookie", "accept-encoding", "connection", "content-length"]);
+  const DROP_RES = new Set(["set-cookie", "content-encoding", "content-length",
+    "transfer-encoding", "x-frame-options", "content-security-policy", "connection"]);
+  const proxy = http.createServer(async (req, res) => {
+    try {
+      const hasBody = req.method !== "GET" && req.method !== "HEAD";
+      const headers = { cookie: `portal_auth=${PORTAL_SECRET}` };
+      for (const [k, v] of Object.entries(req.headers)) if (!DROP_REQ.has(k)) headers[k] = v;
+      const upstream = await fetch(LATEFEED_URL + req.url, {
+        method: req.method,
+        headers,
+        body: hasBody ? req : undefined,
+        duplex: hasBody ? "half" : undefined,
+        redirect: "manual",
+      });
+      const out = {};
+      upstream.headers.forEach((v, k) => { if (!DROP_RES.has(k)) out[k] = v; });
+      const loc = upstream.headers.get("location");
+      if (loc) out["location"] = loc.replace(LATEFEED_URL, "");   // redirects relativos ao proxy
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      res.writeHead(upstream.status, out);
+      res.end(buf);
+    } catch (e) {
+      res.writeHead(502, { "content-type": "text/plain" });
+      res.end("late-proxy: " + String(e.message || e));
+    }
+  });
+  proxy.listen(LATE_PROXY_PORT, "127.0.0.1", () => {
+    console.log(`late-proxy em http://127.0.0.1:${LATE_PROXY_PORT} → ${LATEFEED_URL}`);
+  });
+}
