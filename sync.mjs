@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as brain from "./brain.mjs";
 import { conceptsForRefsCat, conceptsForLateSlug, conceptsForText } from "./taxonomy.mjs";
+import { embedMany, ollamaReady } from "./embed.mjs";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,49 +86,80 @@ async function notionChildren(id) {
   } while (cursor);
   return out;
 }
-async function pagePreview(pageId) {
-  try {
-    const blocks = await notionChildren(pageId);
-    let t = "";
-    for (const b of blocks) {
-      if (t.length > 300) break;
-      if (TEXT_BLOCKS.includes(b.type)) { const s = rich(b[b.type]?.rich_text).trim(); if (s) t += " " + s; }
-    }
-    return t.trim();
-  } catch { return ""; }
-}
+// Notion RECURSIVO: pega TODAS as subpáginas em qualquer profundidade sob a IMPORT.
+// Uma chamada por página já traz o texto (prévia) + os child_page (p/ recorrer).
 async function pullNotion() {
   if (!NOTION_TOKEN || !NOTION_PAGE_ID) return [];
-  const top = await notionChildren(NOTION_PAGE_ID);
-  const pages = top.filter((b) => b.type === "child_page" && b.id.replace(/-/g, "") !== NOTION_TODO_ID);
-  const previews = await Promise.all(pages.map((p) => pagePreview(p.id)));
-  return pages.map((p, i) => {
-    const title = p.child_page?.title || "(sem título)";
-    const preview = previews[i] || "";
-    return {
-      node: { id: `notion-${i}`, source: "notion", src_id: p.id, url: notionUrl(p.id),
-              title, summary: preview.slice(0, 200), created_at: p.last_edited_time || null },
+  const out = [];
+  const seen = new Set([NOTION_TODO_ID]);   // exclui a subpágina de To-do
+  let idx = 0;
+
+  async function walk(pageId, title, parentNodeId, depth) {
+    let blocks;
+    try { blocks = await notionChildren(pageId); } catch { return; }
+    let preview = "";
+    const subs = [];
+    for (const b of blocks) {
+      if (b.type === "child_page") subs.push(b);
+      else if (preview.length < 400 && TEXT_BLOCKS.includes(b.type)) {
+        const s = rich(b[b.type]?.rich_text).trim();
+        if (s) preview += " " + s;
+      }
+    }
+    const myId = `notion-${idx++}`;   // a IMPORT vira a raiz da árvore
+    out.push({
+      node: { id: myId, source: "notion", src_id: pageId, url: notionUrl(pageId),
+              title: title || "IMPORT", summary: preview.trim().slice(0, 240), created_at: null, parent: parentNodeId },
       concepts: conceptsForText(`${title} ${preview}`),
-    };
-  });
+    });
+    if (depth < 6) {
+      for (const p of subs) {
+        const clean = p.id.replace(/-/g, "");
+        if (seen.has(clean)) continue;
+        seen.add(clean);
+        await walk(p.id, p.child_page?.title || "(sem título)", myId, depth + 1);
+      }
+    }
+  }
+
+  await walk(NOTION_PAGE_ID, "IMPORT", null, 0);
+  return out;
 }
 
 // ── run ──────────────────────────────────────────────────────────────────────
-export async function run() {
+// Prioridade: NOTION (todas as subpáginas) + LATENEWS sempre; REFS só sob demanda.
+export async function run({ includeRefs = false } = {}) {
   const t0 = Date.now();
-  const results = await Promise.allSettled([pullRefs(), pullLatefeed(), pullNotion()]);
+  const jobs = [["notion", pullNotion()], ["latefeed", pullLatefeed()]];
+  if (includeRefs) jobs.push(["refs", pullRefs()]);
+  const results = await Promise.allSettled(jobs.map((j) => j[1]));
   const items = [];
   const errors = {};
-  const names = ["refs", "latefeed", "notion"];
   results.forEach((r, i) => {
+    const name = jobs[i][0];
     if (r.status === "fulfilled") items.push(...r.value);
-    else errors[names[i]] = String(r.reason?.message || r.reason);
+    else errors[name] = String(r.reason?.message || r.reason);
   });
   brain.reset();
   brain.insertMany(items);
+
+  // Fase 2: embeddings locais → arestas semânticas
+  let semantic = 0, embErr = null;
+  if (await ollamaReady()) {
+    try {
+      const texts = items.map((it) => `${it.node.title}. ${it.node.summary || ""}`);
+      const vecs = await embedMany(texts, 6);
+      for (let i = 0; i < items.length; i++) if (vecs[i]) brain.storeEmbedding(items[i].node.id, vecs[i]);
+      semantic = brain.rebuildSemanticEdges({ k: 6, threshold: 0.6 });
+      brain.attachNonNotionToNotion();   // latenews/refs viram folhas sob a página Notion mais parecida
+    } catch (e) { embErr = String(e.message || e); }
+  } else {
+    embErr = "ollama/nomic-embed-text indisponível — só arestas por tag";
+  }
+
   const g = brain.graph();
   return { nodes: g.nodes.length, links: g.links.length, concepts: g.concepts.length,
-           bySource: brain.stats().bySource, errors, ms: Date.now() - t0 };
+           semantic, embErr, bySource: brain.stats().bySource, errors, ms: Date.now() - t0 };
 }
 
 // rodar standalone: `node sync.mjs`

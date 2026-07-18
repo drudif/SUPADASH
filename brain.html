@@ -121,6 +121,10 @@
     .nbr .norigin{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;
       display:inline-flex;align-items:center;gap:5px}
     .nbr .norigin:hover{color:var(--cc)}
+    .nbr .nrel{font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;white-space:nowrap;
+      padding:2px 7px;border-radius:999px;line-height:1.35;border:1.5px solid var(--hair);color:var(--ink-3);flex-shrink:0}
+    .nbr .nrel.sem{color:#7c3aed;border-color:#7c3aed}
+    .nbr .nrel.both{color:#7c3aed;border-color:#7c3aed;background:rgba(124,58,237,.07)}
 
     /* source counts (default panel) */
     .counts{display:flex;flex-direction:column;gap:10px}
@@ -164,7 +168,8 @@
       <input id="search" type="text" placeholder="buscar nó…" autocomplete="off" spellcheck="false"/>
       <button class="clr" id="searchClr" title="limpar">×</button>
     </div>
-    <button class="btn" id="resync" title="re-sincronizar as 3 fontes">
+    <button class="btn" id="refsToggle" title="incluir/ocultar REFS no grafo (sob demanda)">REFS</button>
+    <button class="btn" id="resync" title="re-sincronizar Notion + LATENEWS">
       <span class="spin"></span><span class="lbl">resync</span>
     </button>
   </div>
@@ -189,6 +194,7 @@
     <button class="reopen" id="reopen">foco <span>‹</span></button>
   </div>
 
+  <script src="/vendor/d3-force.min.js"></script>
   <script src="/vendor/force-graph.min.js"></script>
   <script>
   (function(){
@@ -253,17 +259,20 @@
       const t = typeof link.target==="object"? link.target : byId.get(link.target);
       const hi = activeHighlightSet();
       const sid = s? s.id : link.source, tid = t? t.id : link.target;
+      // arestas semânticas em violeta; tag/ambos em tinta quente
+      const sem = link.origin==="semantic";
+      const base = (a)=> sem ? `rgba(124,58,237,${a})` : `rgba(25,21,18,${a})`;
       const dimBySrc = (s&&offSources.has(s.source)) || (t&&offSources.has(t.source));
-      if(dimBySrc) return "rgba(25,21,18,0.03)";
+      if(dimBySrc) return base(0.03);
       if(focusId!=null){
-        if(sid===focusId || tid===focusId) return "rgba(25,21,18,0.42)";
-        return "rgba(25,21,18,0.03)";
+        if(sid===focusId || tid===focusId) return base(sem?0.55:0.42);
+        return base(0.03);
       }
       if(hi){
-        if(hi.has(sid) && hi.has(tid)) return "rgba(25,21,18,0.30)";
-        return "rgba(25,21,18,0.04)";
+        if(hi.has(sid) && hi.has(tid)) return base(sem?0.34:0.30);
+        return base(0.04);
       }
-      return "rgba(25,21,18,0.13)";
+      return base(sem?0.20:0.13);
     }
     function linkWidth(link){
       const w = link.weight||1;
@@ -283,11 +292,13 @@
     function buildGraph(){
       const el = $("graph");
       el.innerHTML="";
-      const links = DATA.links.map(l=>({ source:l.source, target:l.target, weight:l.weight||1, concepts:l.concepts||[] }));
+      const links = DATA.links.map(l=>({ source:l.source, target:l.target, weight:l.weight||1, concepts:l.concepts||[], origin:l.origin||"tag" }));
       G = ForceGraph()(el)
         .backgroundColor("rgba(0,0,0,0)")
         .graphData({ nodes: DATA.nodes.map(n=>Object.assign({},n)), links })
         .nodeId("id")
+        .dagMode("td")            // hierarquia top-down: IMPORT no topo, latenews nas folhas embaixo
+        .dagLevelDistance(52)
         .nodeRelSize(4)
         .nodeVal(n=> 1 + (n.degree||0))
         .nodeColor(nodeColor)
@@ -317,8 +328,12 @@
         .onNodeClick(n=>{ openFocus(n.id); })
         .onBackgroundClick(()=>{ clearFocus(); })
         .onNodeHover(n=>{ el.style.cursor = n? "pointer":"default"; });
-      // afrouxa um pouco a repulsão em grafos grandes
-      try{ G.d3Force("charge").strength(-90); }catch(e){}
+      // repulsão + colisão (nunca sobrepor nós)
+      try{ G.d3Force("charge").strength(-140); }catch(e){}
+      try{
+        if(window.d3 && d3.forceCollide)
+          G.d3Force("collide", d3.forceCollide(n=> Math.sqrt(1+(n.degree||0))*4 + 7).iterations(2));
+      }catch(e){}
     }
 
     // ---- FOCUS (node detail) ----
@@ -395,7 +410,13 @@
         ? `<div><div class="seclabel">Conceitos <span class="c mono">${cons.length}</span></div>
              <div class="chips" style="margin-top:9px">${cons.map(c=>`<span class="chip">${esc(c)}</span>`).join("")}</div></div>`
         : "";
-      const nbrs = (d.neighbors||[]).slice().sort((a,b)=>(b.weight||0)-(a.weight||0));
+      const score = (x)=> (x.weight||0) + (x.sim||0);
+      const nbrs = (d.neighbors||[]).slice().sort((a,b)=> score(b)-score(a));
+      const relBadge = (nb)=>{
+        if(nb.origin==="semantic") return `<span class="nrel sem">semântico ${Math.round((nb.sim||0)*100)}%</span>`;
+        if(nb.origin==="both")     return `<span class="nrel both">tag + sem ${Math.round((nb.sim||0)*100)}%</span>`;
+        return `<span class="nrel tag">tag ×${nb.weight||1}</span>`;
+      };
       const nbrHtml = nbrs.length
         ? `<div class="neighbors">${nbrs.map(nb=>{
             const ncc = srcCss(nb.source);
@@ -407,7 +428,7 @@
                 <div class="nhead">
                   <span class="dot"></span>
                   <button class="ntitle" data-goto="${esc(nb.id)}" style="text-align:left;border:none;background:none;padding:0;font-family:var(--serif)">${esc(nb.title||"(sem título)")}</button>
-                  <span class="w mono">${esc(String(nb.weight||1))}</span>
+                  ${relBadge(nb)}
                 </div>${shared}${origin}
               </div>`;
           }).join("")}</div>`
@@ -531,12 +552,13 @@
       }
     }
 
+    let refsOn = false;
     async function doResync(){
       const btn = $("resync");
       btn.classList.add("busy"); btn.disabled=true;
-      showOverlay("loading","re-sincronizando","puxando REFS · LATEFEED · NOTION");
+      showOverlay("loading","re-sincronizando", refsOn ? "puxando NOTION · LATENEWS · REFS" : "puxando NOTION · LATENEWS");
       try{
-        const r = await fetch("/api/brain/sync",{ method:"POST" });
+        const r = await fetch("/api/brain/sync"+(refsOn?"?refs=1":""),{ method:"POST" });
         if(!r.ok) throw new Error("HTTP "+r.status);
         const d = await r.json();
         ingest(d);
@@ -563,6 +585,7 @@
     });
     $("searchClr").onclick=()=>{ $("search").value=""; applySearch(""); $("search").focus(); };
     $("resync").onclick = doResync;
+    $("refsToggle").onclick = ()=>{ refsOn=!refsOn; $("refsToggle").classList.toggle("on",refsOn); doResync(); };
     $("panelX").onclick = collapsePanel;
     $("reopen").onclick = openPanel;
     document.addEventListener("keydown", e=>{

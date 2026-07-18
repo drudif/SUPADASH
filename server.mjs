@@ -407,10 +407,13 @@ const server = http.createServer(async (req, res) => {
       res.end(fs.readFileSync(path.join(DIR, "brain.html"), "utf8"));
       return;
     }
-    if (pathname === "/vendor/force-graph.min.js") {
-      res.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
-      res.end(fs.readFileSync(path.join(DIR, "vendor", "force-graph.min.js")));
-      return;
+    if (pathname.startsWith("/vendor/")) {
+      const f = path.join(DIR, "vendor", path.basename(pathname));   // basename evita traversal
+      if (fs.existsSync(f)) {
+        res.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
+        res.end(fs.readFileSync(f));
+        return;
+      }
     }
     if (pathname === "/api/brain/graph") {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
@@ -426,7 +429,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && pathname === "/api/brain/sync") {
       try {
-        const r = await brainSync.run();
+        const includeRefs = u.searchParams.get("refs") === "1";
+        const r = await brainSync.run({ includeRefs });
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(r));
       } catch (e) {
