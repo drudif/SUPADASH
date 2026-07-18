@@ -221,11 +221,30 @@ async function notionTodos() {
     const blocks = await notionChildren(NOTION_TODO_ID);
     return blocks
       .filter((b) => b.type === "to_do")
-      .map((b) => ({ text: richText(b.to_do?.rich_text), checked: !!b.to_do?.checked }));
+      .map((b) => ({ id: b.id, text: richText(b.to_do?.rich_text), checked: !!b.to_do?.checked }));
   } catch {
     return [];
   }
 }
+
+// ── escrita de to-dos (o dash atua server-side; token nunca vai ao browser) ────
+async function notionWrite(url, method, body) {
+  const res = await fetch(url, {
+    method, headers: NOTION_HEADERS,
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`Notion HTTP ${res.status}`);
+  return res.json();
+}
+const toggleTodo = (id, checked) =>
+  notionWrite(`https://api.notion.com/v1/blocks/${id}`, "PATCH", { to_do: { checked: !!checked } });
+const addTodo = (text) =>
+  notionWrite(`https://api.notion.com/v1/blocks/${NOTION_TODO_ID}/children`, "PATCH", {
+    children: [{ object: "block", type: "to_do", to_do: { rich_text: [{ text: { content: text } }], checked: false } }],
+  });
+const deleteTodo = (id) =>
+  notionWrite(`https://api.notion.com/v1/blocks/${id}`, "DELETE");
 
 async function fetchNotion() {
   const top = await notionChildren(NOTION_PAGE_ID);
@@ -334,6 +353,35 @@ const server = http.createServer(async (req, res) => {
       } else {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         res.end(loginPage(false));
+      }
+      return;
+    }
+
+    // ── to-do interativo (POST) ──────────────────────────────────────────────
+    if (req.method === "POST" && pathname.startsWith("/api/notion/todo/")) {
+      if (!NOTION_TOKEN || !NOTION_TODO_ID) {
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end('{"error":"notion todo não configurado"}');
+        return;
+      }
+      let body = {};
+      try { body = JSON.parse((await readBody(req)) || "{}"); } catch { /* ignore */ }
+      const action = pathname.slice("/api/notion/todo/".length);
+      try {
+        if (action === "toggle") await toggleTodo(body.id, body.checked);
+        else if (action === "add") {
+          const t = String(body.text || "").trim();
+          if (!t) throw new Error("texto vazio");
+          await addTodo(t);
+        } else if (action === "delete") await deleteTodo(body.id);
+        else { res.writeHead(404).end('{"error":"ação inválida"}'); return; }
+        cache = { at: 0, data: null };           // invalida cache p/ refletir
+        const todos = await notionTodos();
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ todos }));
+      } catch (e) {
+        res.writeHead(500, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: String(e.message || e) }));
       }
       return;
     }

@@ -87,10 +87,25 @@
     .card .todos{display:flex;flex-direction:column;gap:7px}
     .card .todohead{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
     .card .todo{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.35;color:var(--ink-2)}
-    .card .todo .box{flex-shrink:0;width:14px;height:14px;border:1.5px solid var(--ink-3);border-radius:4px;margin-top:1px;
-      display:inline-flex;align-items:center;justify-content:center;font-size:10px;line-height:1;color:var(--paper)}
+    .card .todo .box{flex-shrink:0;width:15px;height:15px;border:1.5px solid var(--ink-3);border-radius:4px;margin-top:1px;
+      display:inline-flex;align-items:center;justify-content:center;font-size:10px;line-height:1;color:var(--paper);
+      background:transparent;cursor:pointer;padding:0;font-family:inherit;transition:background .12s,border-color .12s}
+    .card .todo .box:hover{border-color:var(--ink)}
     .card .todo.done .box{background:var(--cc);border-color:var(--cc)}
-    .card .todo.done span{color:var(--ink-3);text-decoration:line-through}
+    .card .todo .tdtext{flex:1;min-width:0}
+    .card .todo.done .tdtext{color:var(--ink-3);text-decoration:line-through}
+    .card .todo .tddel{margin-left:auto;flex-shrink:0;border:none;background:none;color:var(--ink-3);cursor:pointer;
+      font-size:15px;line-height:1;opacity:0;padding:0 2px;font-family:inherit;transition:opacity .12s,color .12s}
+    .card .todo:hover .tddel{opacity:.55} .card .todo .tddel:hover{opacity:1;color:#d61f2b}
+    .card .todo.pending{opacity:.5}
+    .card .tdadd{display:flex;gap:7px;margin-top:4px}
+    .card .tdaddinput{flex:1;min-width:0;border:1.5px solid var(--hair);border-radius:999px;padding:8px 14px;
+      background:transparent;font-family:inherit;font-size:12.5px;color:var(--ink);outline:none}
+    .card .tdaddinput:focus{border-color:var(--ink)}
+    .card .tdaddinput::placeholder{color:var(--ink-3)}
+    .card .tdaddbtn{flex-shrink:0;width:34px;border:1.5px solid var(--line);background:var(--ink);color:var(--paper);
+      border-radius:999px;cursor:pointer;font-size:17px;line-height:1;font-family:inherit}
+    .card .tdaddbtn:hover{background:transparent;color:var(--ink)}
     .card .kfoot{margin-top:2px;padding-top:12px;border-top:1.5px solid var(--hair);display:flex;
       align-items:center;justify-content:space-between}
     .card .when{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
@@ -184,10 +199,18 @@
         ? `<div class="pgsec"><div class="todohead">Todas as subpáginas · ${c.allpages.length}</div>
             <div class="pglist">${c.allpages.map(p=>`<a class="pglink" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`).join("")}</div></div>`
         : "";
-      const todos = (c.todos&&c.todos.length)
-        ? `<div class="todos"><div class="todohead">To-do</div>${c.todos.map(t=>
-            `<div class="todo ${t.checked?"done":""}"><span class="box">${t.checked?"✓":""}</span><span>${esc(t.text||"")}</span></div>`).join("")}</div>`
-        : "";
+      const todoItems = (c.todos||[]).map(t=>
+        `<div class="todo ${t.checked?"done":""}" data-id="${esc(t.id)}">
+           <button class="box tdbox" data-id="${esc(t.id)}" title="marcar">${t.checked?"✓":""}</button>
+           <span class="tdtext">${esc(t.text||"")}</span>
+           <button class="tddel" data-id="${esc(t.id)}" title="remover">×</button>
+         </div>`).join("");
+      const todos = `<div class="todos"><div class="todohead">To-do</div>
+          ${todoItems || '<div class="empty2">sem tarefas</div>'}
+          <div class="tdadd">
+            <input class="tdaddinput" type="text" placeholder="nova tarefa" autocomplete="off"/>
+            <button class="tdaddbtn" title="adicionar">+</button>
+          </div></div>`;
       box.innerHTML = `<div class="card" style="--cc:${cc}"><div class="bar"></div><div class="pad">
         <div class="khead"><span class="kname">Notion · IMPORT</span><span class="tag">real</span></div>
         <div class="big"><span class="num mono">${c.count.toLocaleString("pt-BR")}</span><span class="unit">${esc(c.label||"itens")}</span></div>
@@ -197,6 +220,44 @@
         <div class="kfoot"><span class="when">${when||"—"}</span>
           <a class="go" href="${esc(c.url)}" target="_blank" rel="noopener">abrir <span class="arw">→</span></a></div>
       </div>`;
+    }
+
+    // ── to-do interativo ──────────────────────────────────────────────────────
+    async function todoPost(action, payload){
+      const r = await fetch("/api/notion/todo/"+action, {
+        method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify(payload||{}) });
+      if(!r.ok) throw new Error("falhou");
+      return (await r.json()).todos;
+    }
+    function onToggle(id){
+      const t = (cards.notion?.todos||[]).find(x=>x.id===id); if(!t) return;
+      t.checked = !t.checked; renderNotion();                         // otimista
+      todoPost("toggle",{id,checked:t.checked})
+        .then(todos=>{ cards.notion.todos=todos; renderNotion(); })
+        .catch(()=>{ t.checked=!t.checked; renderNotion(); });
+    }
+    function onDelete(id){
+      const el = document.querySelector(`.todo[data-id="${CSS.escape(id)}"]`); if(el) el.classList.add("pending");
+      todoPost("delete",{id}).then(todos=>{ cards.notion.todos=todos; renderNotion(); })
+        .catch(()=>{ if(el) el.classList.remove("pending"); });
+    }
+    function onAdd(input){
+      const text = (input.value||"").trim(); if(!text) return;
+      input.value=""; input.disabled=true;
+      todoPost("add",{text}).then(todos=>{ cards.notion.todos=todos; renderNotion();
+        const ni=document.querySelector(".tdaddinput"); if(ni) ni.focus(); })
+        .catch(()=>{ input.disabled=false; input.value=text; });
+    }
+    function wireTodos(){
+      const box = document.getElementById("notion");
+      box.addEventListener("click", e=>{
+        const tb=e.target.closest(".tdbox"); if(tb){ onToggle(tb.dataset.id); return; }
+        const dl=e.target.closest(".tddel"); if(dl){ onDelete(dl.dataset.id); return; }
+        const ab=e.target.closest(".tdaddbtn"); if(ab){ onAdd(box.querySelector(".tdaddinput")); return; }
+      });
+      box.addEventListener("keydown", e=>{
+        if(e.target.classList.contains("tdaddinput") && e.key==="Enter") onAdd(e.target);
+      });
     }
 
     async function load(){
@@ -209,6 +270,7 @@
       renderNotion();
       if (!active) selectTab(cards.refs?.url ? "refs" : TABS[0].key);
     }
+    wireTodos();
     load();
   </script>
 </body>
