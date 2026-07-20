@@ -194,6 +194,10 @@
     <button class="reopen" id="reopen">foco <span>‹</span></button>
   </div>
 
+  <!-- d3-force precisa destas 3 deps (senão forceCollide quebra a simulação) -->
+  <script src="/vendor/d3-dispatch.min.js"></script>
+  <script src="/vendor/d3-quadtree.min.js"></script>
+  <script src="/vendor/d3-timer.min.js"></script>
   <script src="/vendor/d3-force.min.js"></script>
   <script src="/vendor/force-graph.min.js"></script>
   <script>
@@ -330,10 +334,13 @@
         .onNodeHover(n=>{ el.style.cursor = n? "pointer":"default"; });
       // repulsão + colisão (nunca sobrepor nós)
       try{ G.d3Force("charge").strength(-140); }catch(e){}
+      // só liga a colisão se o d3 estiver COMPLETO (forceCollide usa quadtree por dentro;
+      // sem a dep a simulação quebra e o grafo trava)
       try{
-        if(window.d3 && d3.forceCollide)
+        if(window.d3 && d3.forceCollide && d3.quadtree)
           G.d3Force("collide", d3.forceCollide(n=> Math.sqrt(1+(n.degree||0))*4 + 7).iterations(2));
-      }catch(e){}
+        else console.warn("[cérebro] d3 incompleto — colisão desligada");
+      }catch(e){ console.warn("[cérebro] colisão falhou:", e); }
     }
 
     // ---- FOCUS (node detail) ----
