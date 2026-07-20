@@ -292,6 +292,43 @@
       G.nodeColor(nodeColor).linkColor(linkColor).linkWidth(linkWidth);
     }
 
+    // ---- minicards (nós desenhados como cartões com título) ----
+    function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+    function trunc(s,n){ s=String(s||"(sem título)"); return s.length>n ? s.slice(0,n-1)+"…" : s; }
+    function drawCard(node, ctx){
+      const focused = node.id===focusId;
+      const fs = focused ? 4.2 : 3.6;                 // tamanho em unidades do grafo (escala junto no zoom)
+      const label = trunc(node.title, 30);
+      ctx.font = `${focused?700:600} ${fs}px Satoshi, sans-serif`;
+      const tw = ctx.measureText(label).width;
+      const padX=3.2, padY=2.4;
+      const w = tw + padX*2 + 5, h = fs + padY*2;
+      node.__w=w; node.__h=h;                         // guarda p/ área de clique + colisão
+      const dim = isDim(node);
+      const col = srcColor(node.source);
+      const x=node.x-w/2, y=node.y-h/2;
+      rr(ctx,x,y,w,h,2.4);
+      ctx.fillStyle = dim ? "rgba(244,239,230,0.28)" : "#faf6ee";
+      ctx.fill();
+      ctx.lineWidth = focused ? 1.4 : 0.85;
+      ctx.strokeStyle = dim ? "rgba(138,130,114,0.22)" : col;
+      ctx.stroke();
+      // barrinha colorida da fonte à esquerda
+      if(!dim){ ctx.fillStyle=col; rr(ctx,x,y,1.8,h,1); ctx.fill(); }
+      ctx.textAlign="left"; ctx.textBaseline="middle";
+      ctx.fillStyle = dim ? "rgba(138,130,114,0.5)" : "#191512";
+      ctx.fillText(label, x+padX+3, node.y+0.2);
+    }
+    function cardPointer(node, color, ctx){
+      const w=node.__w||14, h=node.__h||6;
+      ctx.fillStyle=color; rr(ctx,node.x-w/2,node.y-h/2,w,h,2.4); ctx.fill();
+    }
+    function collideRadius(n){
+      const w = n.__w || (Math.min(trunc(n.title,30).length,30)*2.1 + 12);
+      const h = n.__h || 8;
+      return Math.max(w,h)/2 + 1.5;
+    }
+
     // ---- build graph ----
     function buildGraph(){
       const el = $("graph");
@@ -301,34 +338,13 @@
         .backgroundColor("rgba(0,0,0,0)")
         .graphData({ nodes: DATA.nodes.map(n=>Object.assign({},n)), links })
         .nodeId("id")
-        .dagMode("td")            // hierarquia top-down: IMPORT no topo, latenews nas folhas embaixo
-        .dagLevelDistance(52)
-        .nodeRelSize(4)
-        .nodeVal(n=> 1 + (n.degree||0))
-        .nodeColor(nodeColor)
+        .dagMode("radialout")     // hierarquia RADIAL: importantes ao centro, relacionados ao redor
+        .dagLevelDistance(64)
         .linkColor(linkColor)
         .linkWidth(linkWidth)
-        .nodeCanvasObjectMode(()=> (focusId!=null || searchHits) ? "after" : undefined)
-        .nodeCanvasObject((node,ctx,scale)=>{
-          // desenha rótulo para o nó focado, vizinhos e resultados de busca
-          const hi = activeHighlightSet();
-          const focused = node.id===focusId;
-          const inSearch = searchHits && searchHits.has(node.id);
-          if(!focused && !inSearch) return;
-          if(hi && !hi.has(node.id) && !inSearch) return;
-          const label = String(node.title||"");
-          if(!label) return;
-          const fs = Math.max(10/scale, (focused?13:11)/scale);
-          ctx.font = `${focused?700:500} ${fs}px Satoshi, sans-serif`;
-          const r = Math.sqrt(1+(node.degree||0))*4/scale + 3/scale;
-          const tw = ctx.measureText(label).width;
-          const pad = 3/scale;
-          ctx.fillStyle="rgba(244,239,230,0.82)";
-          ctx.fillRect(node.x - tw/2 - pad, node.y + r, tw + pad*2, fs + pad*1.5);
-          ctx.textAlign="center"; ctx.textBaseline="top";
-          ctx.fillStyle= focused ? srcColor(node.source) : "#4c463d";
-          ctx.fillText(label, node.x, node.y + r + pad*0.5);
-        })
+        .nodeCanvasObjectMode(()=>"replace")   // desenha minicard no lugar do círculo
+        .nodeCanvasObject(drawCard)
+        .nodePointerAreaPaint(cardPointer)
         .onNodeClick(n=>{ openFocus(n.id); })
         .onBackgroundClick(()=>{ clearFocus(); })
         .onNodeHover(n=>{ el.style.cursor = n? "pointer":"default"; });
@@ -338,7 +354,7 @@
       // sem a dep a simulação quebra e o grafo trava)
       try{
         if(window.d3 && d3.forceCollide && d3.quadtree)
-          G.d3Force("collide", d3.forceCollide(n=> Math.sqrt(1+(n.degree||0))*4 + 7).iterations(2));
+          G.d3Force("collide", d3.forceCollide(collideRadius).iterations(3));
         else console.warn("[cérebro] d3 incompleto — colisão desligada");
       }catch(e){ console.warn("[cérebro] colisão falhou:", e); }
     }
